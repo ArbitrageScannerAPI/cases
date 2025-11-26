@@ -5,22 +5,25 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
     
-    - name: Restore dependencies
-      run: dotnet restore api_csharp_httpclient/DemoBlazor/DemoBlazor.csproj
-    
-    - name: Publish
-      run: dotnet publish api_csharp_httpclient/DemoBlazor/DemoBlazor.csproj -c Release -o ./out
+    - name: Restore and Build
+      run: |
+        cd api_csharp_httpclient/DemoBlazor
+        dotnet restore
+        dotnet publish -c Release -o ../../out
     
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
@@ -28,3 +31,4 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./out/wwwroot
         destination_dir: DemoAPI1
+        allow_empty_commit: true
