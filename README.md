@@ -1,1 +1,1 @@
-# templates_4_API
+# Examples of using the API from arbitragescanner.io
