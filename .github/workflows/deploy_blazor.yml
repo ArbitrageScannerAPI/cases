@@ -3,32 +3,41 @@ name: Deploy Blazor to GitHub Pages
 on:
   push:
     branches: [ main ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
+  build:
+    runs-on: ubuntu-24.04
+
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
-    
+      with:
+        fetch-depth: 0
+        persist-credentials: true
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v3
       with:
         dotnet-version: '8.0.x'
-    
-    - name: Restore and Build
-      run: |
-        cd api_csharp_httpclient/DemoBlazor
-        dotnet restore
-        dotnet publish -c Release -o ../../out
-    
-    - name: Deploy to GitHub Pages
+
+    - name: Restore
+      run: dotnet restore api_csharp_httpclient/DemoBlazor/DemoBlazor.csproj
+
+    - name: Publish
+      run: dotnet publish api_csharp_httpclient/DemoBlazor/DemoBlazor.csproj -c Release -o ./out
+
+    - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./out/wwwroot
         destination_dir: DemoAPI1
+        publish_branch: gh-pages
         allow_empty_commit: true
+        force_orphan: true
