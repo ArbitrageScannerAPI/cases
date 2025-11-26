@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PortfolioManagement", "PortfolioManagement", "{09716D3D-3FE1-D928-6EE1-F2A3FFA58FE8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoBlazor", "PortfolioManagement\DemoBlazor\DemoBlazor.csproj", "{77BD8E65-4AB5-00DA-9796-9E9F6059FD05}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{77BD8E65-4AB5-00DA-9796-9E9F6059FD05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77BD8E65-4AB5-00DA-9796-9E9F6059FD05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77BD8E65-4AB5-00DA-9796-9E9F6059FD05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77BD8E65-4AB5-00DA-9796-9E9F6059FD05}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{77BD8E65-4AB5-00DA-9796-9E9F6059FD05} = {09716D3D-3FE1-D928-6EE1-F2A3FFA58FE8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D46503AD-40D9-4290-B81B-42B2433B2203}
+	EndGlobalSection
+EndGlobal

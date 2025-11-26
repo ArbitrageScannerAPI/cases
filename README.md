@@ -12,19 +12,19 @@
 - `api_php_curl/` — пример на PHP
 - `api_java_httpclient/` — пример на Java
 - `api_csharp_httpclient/` — пример на C#
-- **`api_csharp_httpclient/DemoBlazor/`** — интерактивное веб-приложение на Blazor WASM
+- **`PortfolioManagement/DemoBlazor/`** — интерактивное веб-приложение на Blazor WASM
 
 ## 🚀 Демо приложение
 
 Blazor WASM приложение с MudBlazor компонентами:
 
-**Адрес:** https://arbitragescannerapi.github.io/DemoAPI1/
+**Адрес (gh-pages):** https://ArbitrageScannerAPI.github.io/cases/PortfolioManagement/
 
 Приложение делает GET запрос к JSONPlaceholder API и отображает результат в браузере.
 
 ### Локальный запуск DemoBlazor:
 ```bash
-cd api_csharp_httpclient/DemoBlazor
+cd PortfolioManagement/DemoBlazor
 dotnet run
 ```
 

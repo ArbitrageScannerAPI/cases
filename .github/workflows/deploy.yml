@@ -1,0 +1,35 @@
+name: Deploy DemoBlazor to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore packages
+        run: dotnet restore PortfolioManagement/DemoBlazor/DemoBlazor.csproj
+
+      - name: Publish Blazor WebAssembly app
+        run: |
+          dotnet publish PortfolioManagement/DemoBlazor/DemoBlazor.csproj -c Release -o ./out
+
+      - name: Deploy to GitHub Pages (publish to gh-pages/PortfolioManagement)
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # directory containing files to publish (publish output's wwwroot)
+          publish_dir: ./out/wwwroot
+          publish_branch: gh-pages
+          destination_dir: PortfolioManagement
+          keep_history: true
