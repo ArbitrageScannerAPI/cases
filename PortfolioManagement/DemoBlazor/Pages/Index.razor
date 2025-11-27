@@ -4,44 +4,95 @@
 @using MudBlazor
 
 <MudPaper Class="pa-4">
-    <MudText Typo="Typo.h5">Пример запроса к JSONPlaceholder</MudText>
+    <MudText Typo="Typo.h5">Portfolios</MudText>
     <MudDivider Class="my-2" />
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Load">Загрузить пост #1</MudButton>
     
-    @if (loading)
-    {
-        <MudProgressCircular Indeterminate="true" Class="mx-2" />
-    }
+    <div class="d-flex gap-2 mb-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio">Add new</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
+    </div>
 
-    @if (post is not null)
-    {
-        <MudCard Class="mt-4">
-            <MudCardContent>
-                <MudText Typo="Typo.h6">@post.title</MudText>
-                <MudText>@post.body</MudText>
-            </MudCardContent>
-        </MudCard>
-    }
+    <MudTable 
+        Items="@portfolios" 
+        T="Portfolio" 
+        Hover="true" 
+        Breakpoint="Breakpoint.Sm"
+        FixedHeader="true"
+        Height="calc(100vh - 250px)"
+        @bind-SelectedItem="selectedPortfolio"
+        RowStyleFunc="@SelectedRowStyleFunc">
+        <HeaderContent>
+            <MudTh Style="width: 60px;">№</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Sol</MudTh>
+            <MudTh>wSOL</MudTh>
+            <MudTh>USDC</MudTh>
+            <MudTh>All</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="№">@context.Number</MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Sol">@context.Sol</MudTd>
+            <MudTd DataLabel="wSOL">@context.WSol</MudTd>
+            <MudTd DataLabel="USDC">@context.Usdc</MudTd>
+            <MudTd DataLabel="All">@context.All</MudTd>
+        </RowTemplate>
+    </MudTable>
 </MudPaper>
 
 @code {
-    bool loading = false;
-    Post? post;
+    private List<Portfolio> portfolios = new List<Portfolio>
+    {
+        new Portfolio { Number = 1 },
+        new Portfolio { Number = 2 },
+        new Portfolio { Number = 3 }
+    };
+    
+    private Portfolio? selectedPortfolio;
 
-    async Task Load() {
-        loading = true;
-        try {
-            post = await Http.GetFromJsonAsync<Post>("https://jsonplaceholder.typicode.com/posts/1");
-        }
-        finally {
-            loading = false;
+    private void AddNewPortfolio()
+    {
+        var newPortfolio = new Portfolio 
+        { 
+            Number = portfolios.Count + 1 
+        };
+        portfolios.Add(newPortfolio);
+    }
+
+    private void DeleteSelectedPortfolio()
+    {
+        if (selectedPortfolio != null)
+        {
+            portfolios.Remove(selectedPortfolio);
+            RenumberPortfolios();
+            selectedPortfolio = null;
         }
     }
 
-    class Post {
-        public int userId { get; set; }
-        public int id { get; set; }
-        public string? title { get; set; }
-        public string? body { get; set; }
+    private void RenumberPortfolios()
+    {
+        for (int i = 0; i < portfolios.Count; i++)
+        {
+            portfolios[i].Number = i + 1;
+        }
+    }
+
+    private string SelectedRowStyleFunc(Portfolio portfolio, int rowNumber)
+    {
+        if (selectedPortfolio != null && selectedPortfolio.Equals(portfolio))
+        {
+            return "background-color: #E3F2FD;";
+        }
+        return string.Empty;
+    }
+
+    private class Portfolio
+    {
+        public int Number { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Sol { get; set; } = string.Empty;
+        public string WSol { get; set; } = string.Empty;
+        public string Usdc { get; set; } = string.Empty;
+        public string All { get; set; } = string.Empty;
     }
 }
