@@ -1,5 +1,6 @@
 @page "/"
 @inject HttpClient Http
+@inject IDialogService DialogService
 @using System.Net.Http.Json
 @using MudBlazor
 
@@ -9,13 +10,15 @@
     
     <div class="d-flex gap-2 mb-4">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio">Add new</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog">Config</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
     </div>
 
     <MudTable 
         Items="@portfolios" 
         T="Portfolio" 
-        Hover="true" 
+        Hover="true"
+        Bordered="true"
         Breakpoint="Breakpoint.Sm"
         FixedHeader="true"
         Height="calc(100vh - 250px)"
@@ -31,7 +34,13 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="№">@context.Number</MudTd>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Name">
+                <MudTextField @bind-Value="context.Name" 
+                              Margin="Margin.Dense" 
+                              Variant="Variant.Text"
+                              MaxLength="30"
+                              Immediate="false"/>
+            </MudTd>
             <MudTd DataLabel="Sol">@context.Sol</MudTd>
             <MudTd DataLabel="wSOL">@context.WSol</MudTd>
             <MudTd DataLabel="USDC">@context.Usdc</MudTd>
@@ -84,6 +93,17 @@
             return "background-color: #E3F2FD;";
         }
         return string.Empty;
+    }
+
+    private void OpenConfigDialog()
+    {
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large, 
+            FullWidth = true,
+            CloseButton = true
+        };
+        DialogService.Show<WalletConfigDialog>("Collection of wallets", options);
     }
 
     private class Portfolio

@@ -1,0 +1,146 @@
+// WalletConfigDialog.razor
+
+
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h5" Class="mb-4">Collection of wallets</MudText>
+        
+        <div class="d-flex gap-2 mb-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet">Add</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
+        </div>
+
+        <MudTable 
+            Items="@wallets" 
+            T="Wallet" 
+            Hover="true"
+            Bordered="true"
+            Breakpoint="Breakpoint.Sm"
+            FixedHeader="true"
+            Height="400px"
+            @bind-SelectedItem="selectedWallet"
+            RowStyleFunc="@SelectedRowStyleFunc">
+            <HeaderContent>
+                <MudTh Style="width: 60px;">№</MudTh>
+                <MudTh>Address</MudTh>
+                <MudTh>Sol</MudTh>
+                <MudTh>wSOL</MudTh>
+                <MudTh>USDC</MudTh>
+                <MudTh>All</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="№">@context.Number</MudTd>
+                <MudTd DataLabel="Address">
+                    <MudTextField @bind-Value="context.Address" 
+                                  Margin="Margin.Dense" 
+                                  Variant="Variant.Text"
+                                  MaxLength="60"
+                                  Immediate="false"
+                                  OnKeyDown="@((e) => HandleKeyDown(e, context))"
+                                  OnBlur="@(() => ValidateAndSaveAddress(context))"/>
+                </MudTd>
+                <MudTd DataLabel="Sol">@context.Sol</MudTd>
+                <MudTd DataLabel="wSOL">@context.WSol</MudTd>
+                <MudTd DataLabel="USDC">@context.Usdc</MudTd>
+                <MudTd DataLabel="All">@context.All</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance? MudDialog { get; set; }
+
+    private List<Wallet> wallets = new List<Wallet>
+    {
+        new Wallet { Number = 1 },
+        new Wallet { Number = 2 },
+        new Wallet { Number = 3 }
+    };
+    
+    private Wallet? selectedWallet;
+    private string tempAddress = string.Empty;
+
+    private void AddNewWallet()
+    {
+        var newWallet = new Wallet 
+        { 
+            Number = wallets.Count + 1 
+        };
+        wallets.Add(newWallet);
+    }
+
+    private void DeleteSelectedWallet()
+    {
+        if (selectedWallet != null)
+        {
+            wallets.Remove(selectedWallet);
+            RenumberWallets();
+            selectedWallet = null;
+        }
+    }
+
+    private void RenumberWallets()
+    {
+        for (int i = 0; i < wallets.Count; i++)
+        {
+            wallets[i].Number = i + 1;
+        }
+    }
+
+    private string SelectedRowStyleFunc(Wallet wallet, int rowNumber)
+    {
+        if (selectedWallet != null && selectedWallet.Equals(wallet))
+        {
+            return "background-color: #E3F2FD;";
+        }
+        return string.Empty;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e, Wallet wallet)
+    {
+        if (e.Key == "Enter")
+        {
+            ValidateAndSaveAddress(wallet);
+        }
+    }
+
+    private void ValidateAndSaveAddress(Wallet wallet)
+    {
+        if (!string.IsNullOrWhiteSpace(wallet.Address))
+        {
+            // Валидация адреса
+            bool isValid = ValidateAddress(wallet.Address);
+            
+            if (isValid)
+            {
+                // Адрес валидный, сохраняем
+                tempAddress = wallet.Address;
+            }
+            else
+            {
+                // Если валидация не прошла, можно очистить или оставить предыдущее значение
+                wallet.Address = tempAddress;
+            }
+        }
+    }
+
+    private bool ValidateAddress(string address)
+    {
+        // Пока всегда возвращаем true (валидация пройдена)
+        return true;
+    }
+
+    private class Wallet
+    {
+        public int Number { get; set; }
+        public string Address { get; set; } = string.Empty;
+        public string Sol { get; set; } = string.Empty;
+        public string WSol { get; set; } = string.Empty;
+        public string Usdc { get; set; } = string.Empty;
+        public string All { get; set; } = string.Empty;
+    }
+}
