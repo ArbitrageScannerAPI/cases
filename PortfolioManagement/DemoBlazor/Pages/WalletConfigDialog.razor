@@ -4,6 +4,9 @@
 @inject IDialogService DialogService
 
 <MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Wallet Configuration</MudText>
+    </TitleContent>
     <DialogContent>
         <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
             <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
@@ -17,22 +20,21 @@
                     <MudTh Style="width: 80px;">All</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-    <MudTd DataLabel="№">@context?.Number</MudTd>
-    <MudTd DataLabel="Address">
-        @if (context != null)
-        {
-            <MudTextField @bind-Value="@context.Sol" 
-                          MaxLength="60" 
-                          OnBlur="@(() => OnAddressBlur(context))"
-                          Immediate="false" />
-        }
-    </MudTd>
-    <MudTd DataLabel="Sol">@context?.Sol</MudTd>
-    <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
-    <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
-    <MudTd DataLabel="All">@context?.All</MudTd>
-</RowTemplate>
-
+                    <MudTd DataLabel="№">@context?.Number</MudTd>
+                    <MudTd DataLabel="Address">
+                        @if (context != null)
+                        {
+                            <MudTextField @bind-Value="@context.Sol" 
+                                          MaxLength="60" 
+                                          OnBlur="@(() => OnAddressBlur(context))"
+                                          Immediate="false" />
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Sol">@context?.Sol</MudTd>
+                    <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
+                    <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
+                    <MudTd DataLabel="All">@context?.All</MudTd>
+                </RowTemplate>
             </MudTable>
         </MudPaper>
 
@@ -52,7 +54,6 @@
 
     private List<Wallet> wallets = new List<Wallet>();
     private Wallet? selectedWallet;
-    private string tempAddress = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,7 +75,8 @@
         }
         else
         {
-            wallet.Sol = string.Empty; // Очищаем невалидный адрес
+            wallet.Sol = string.Empty;
+            StateHasChanged();
         }
     }
 
@@ -126,21 +128,21 @@
         dialog.Close();
     }
 
-    private void AddNewWallet()
+    private async Task AddNewWallet()
     {
         var newWallet = new Wallet { Number = wallets.Count + 1 };
         wallets.Add(newWallet);
-        SaveWalletsToStorage().Wait();
+        await SaveWalletsToStorage();
     }
 
-    private void DeleteWallet()
+    private async Task DeleteWallet()
     {
         if (selectedWallet != null)
         {
             wallets.Remove(selectedWallet);
             RenumberWallets();
             selectedWallet = null;
-            SaveWalletsToStorage().Wait();
+            await SaveWalletsToStorage();
         }
     }
 
