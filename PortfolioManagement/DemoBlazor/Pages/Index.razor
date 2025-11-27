@@ -127,7 +127,7 @@
     {
         if (selectedPortfolio != null)
         {
-            // Удаляем также кошельки этого портфеля
+            // Удаляем также кошельки этого портфеля из sessionStorage
             await JSRuntime.InvokeVoidAsync("sessionStorage.removeItem", $"wallets_{selectedPortfolio.Id}");
             
             portfolios.Remove(selectedPortfolio);
@@ -155,23 +155,27 @@
     }
 
     private void OpenConfigDialog()
+{
+    if (selectedPortfolio == null) return;
+
+    var parameters = new DialogParameters<WalletConfigDialog>
     {
-        if (selectedPortfolio == null) return;
+        { x => x.PortfolioId, selectedPortfolio.Id }
+    };
 
-        var parameters = new DialogParameters<WalletConfigDialog>
-        {
-            { x => x.PortfolioId, selectedPortfolio.Id }
-        };
-
-        var options = new DialogOptions 
-        { 
-            MaxWidth = MaxWidth.Large, 
-            FullWidth = true,
-            CloseButton = true
-        };
-        
-        DialogService.Show<WalletConfigDialog>($"Collection of wallets - {selectedPortfolio.Name}", parameters, options);
-    }
+    var options = new DialogOptions 
+    { 
+        MaxWidth = MaxWidth.Large, 
+        FullWidth = true,
+        CloseButton = true
+    };
+    
+    var portfolioTitle = string.IsNullOrWhiteSpace(selectedPortfolio.Name) 
+        ? $"Portfolio #{selectedPortfolio.Number}" 
+        : selectedPortfolio.Name;
+    
+    DialogService.Show<WalletConfigDialog>($"Wallets - {portfolioTitle}", parameters, options);
+}
 
     private class Portfolio
     {
