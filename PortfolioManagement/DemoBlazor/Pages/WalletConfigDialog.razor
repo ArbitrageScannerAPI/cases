@@ -3,6 +3,7 @@
 @inject IJSRuntime JSRuntime
 @inject IDialogService DialogService
 @inject SolanaAddressValidator AddressValidator
+@inject SolanaBalanceService BalanceService
 
 <MudDialog>
     <TitleContent>
@@ -80,40 +81,45 @@ private async Task OnAddressBlur(Wallet wallet)
     await ValidateAndSaveAddress(wallet);
 }
 
-private async Task ValidateAndSaveAddress(Wallet wallet)
-{
-    if (string.IsNullOrWhiteSpace(wallet.Address))
+ private async Task ValidateAndSaveAddress(Wallet wallet)
     {
-        Console.WriteLine("Address is empty, saving without validation");
-        await SaveWalletsToStorage();
-        return;
-    }
+        if (string.IsNullOrWhiteSpace(wallet.Address))
+        {
+            Console.WriteLine("Address is empty, saving without validation");
+            await SaveWalletsToStorage();
+            return;
+        }
 
-    Console.WriteLine($"Starting validation for address: {wallet.Address}");
-    
-    // Используем сервис валидации
-    bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
-    
-    Console.WriteLine($"Validation result: {isValid}");
-    
-    if (isValid)
-    {
-        Console.WriteLine("Address is valid, saving...");
-        await SaveWalletsToStorage();
-    }
-    else
-    {
-        Console.WriteLine("Address is invalid, showing modal...");
+        Console.WriteLine($"Starting validation for address: {wallet.Address}");
         
-        // Показываем модальное окно на 2 секунды
-        await ShowInvalidAddressModal();
+        bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
         
-        // Очищаем поле адреса
-        wallet.Address = string.Empty;
-        StateHasChanged();
+        Console.WriteLine($"Validation result: {isValid}");
+        
+        if (isValid)
+        {
+            Console.WriteLine("Address is valid, fetching balances...");
+            
+            // Получаем балансы
+            var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+            
+            // Заполняем поля кошелька (конвертируем decimal в string)
+            wallet.Sol = balances.Sol.ToString("G");
+            wallet.WSol = balances.WSol.ToString("G");
+            wallet.Usdc = balances.Usdc.ToString("G");
+            wallet.All = balances.TotalUsd.ToString("F2");
+            
+            await SaveWalletsToStorage();
+            StateHasChanged();
+        }
+        else
+        {
+            Console.WriteLine("Address is invalid, showing modal...");
+            await ShowInvalidAddressModal();
+            wallet.Address = string.Empty;
+            StateHasChanged();
+        }
     }
-}
-
 
     private async Task ShowInvalidAddressModal()
     {
@@ -189,6 +195,7 @@ private async Task ValidateAndSaveAddress(Wallet wallet)
         await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, json);
     }
 
+    
     public class Wallet
     {
         public int Number { get; set; }
