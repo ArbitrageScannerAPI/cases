@@ -7,8 +7,9 @@ namespace DemoBlazor
     public class SolanaAddressValidator
     {
         private readonly HttpClient _httpClient;
-        private const string ApiUrl = "https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/address/general_info";
-        private const string ApiKey = "JYnC6aZete6f6edaksMh5x";
+        
+        // Ваш Vercel API URL
+        private const string VercelApiUrl = "https://vercel-apip-roxima-5ta3rzjvs-igor-devs-projects.vercel.app/api/validate";
 
         public SolanaAddressValidator(HttpClient httpClient)
         {
@@ -24,17 +25,11 @@ namespace DemoBlazor
 
             try
             {
-                // Формируем полный URL к API
-                var fullApiUrl = $"{ApiUrl}?address={address}";
+                var url = $"{VercelApiUrl}?address={Uri.EscapeDataString(address)}";
                 
-                // Используем AllOrigins прокси (он проще работает)
-                var proxyUrl = $"https://api.allorigins.win/raw?url={Uri.EscapeDataString(fullApiUrl)}";
-                
-                Console.WriteLine($"Calling API via proxy: {proxyUrl}");
+                Console.WriteLine($"Calling Vercel API: {url}");
 
-                // Делаем простой GET запрос без дополнительных заголовков
-                // (прокси сам добавит нужные заголовки к внешнему API)
-                var response = await _httpClient.GetAsync(proxyUrl);
+                var response = await _httpClient.GetAsync(url);
                 var body = await response.Content.ReadAsStringAsync();
 
                 Console.WriteLine($"Response Status: {response.StatusCode}");
