@@ -1,9 +1,9 @@
 using System;
 using System.Net.Http;
-using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 
-namespace DemoBlazor // Замените на ваш namespace
+namespace DemoBlazor
 {
     public class SolanaAddressValidator
     {
@@ -27,23 +27,29 @@ namespace DemoBlazor // Замените на ваш namespace
             {
                 var url = $"{ApiUrl}?address={address}";
                 
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("accept", "application/json");
                 request.Headers.Add("X-API-Key", ApiKey);
 
-                using var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request);
                 var body = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine($"API Response Status: {response.StatusCode}");
+                Console.WriteLine($"API Response Body: {body}");
 
                 // Проверяем код ответа 400 или наличие "error" в теле ответа
                 if ((int)response.StatusCode == 400 || body.Contains("\"error\""))
                 {
+                    Console.WriteLine("Validation FAILED - Invalid address");
                     return false;
                 }
 
+                Console.WriteLine("Validation SUCCESS - Valid address");
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine($"Validation ERROR: {ex.Message}");
                 return false;
             }
         }

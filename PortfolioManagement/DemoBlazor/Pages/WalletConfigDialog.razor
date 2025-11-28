@@ -64,45 +64,56 @@
     }
 
     private async Task OnAddressKeyDown(KeyboardEventArgs e, Wallet wallet)
+{
+    // При нажатии Enter валидируем адрес
+    if (e.Key == "Enter" || e.Key == "Return")
     {
-        // При нажатии Enter валидируем адрес
-        if (e.Key == "Enter" || e.Key == "Return")
-        {
-            await ValidateAndSaveAddress(wallet);
-        }
-    }
-
-    private async Task OnAddressBlur(Wallet wallet)
-    {
-        // При потере фокуса (blur) также валидируем
+        Console.WriteLine($"Enter pressed for address: {wallet.Address}");
         await ValidateAndSaveAddress(wallet);
     }
+}
 
-    private async Task ValidateAndSaveAddress(Wallet wallet)
+private async Task OnAddressBlur(Wallet wallet)
+{
+    // При потере фокуса (blur) также валидируем
+    Console.WriteLine($"Blur event for address: {wallet.Address}");
+    await ValidateAndSaveAddress(wallet);
+}
+
+private async Task ValidateAndSaveAddress(Wallet wallet)
+{
+    if (string.IsNullOrWhiteSpace(wallet.Address))
     {
-        if (string.IsNullOrWhiteSpace(wallet.Address))
-        {
-            await SaveWalletsToStorage();
-            return;
-        }
-
-        // Используем сервис валидации
-        bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
-        
-        if (isValid)
-        {
-            await SaveWalletsToStorage();
-        }
-        else
-        {
-            // Показываем модальное окно на 2 секунды
-            await ShowInvalidAddressModal();
-            
-            // Очищаем поле адреса
-            wallet.Address = string.Empty;
-            StateHasChanged();
-        }
+        Console.WriteLine("Address is empty, saving without validation");
+        await SaveWalletsToStorage();
+        return;
     }
+
+    Console.WriteLine($"Starting validation for address: {wallet.Address}");
+    
+    // Используем сервис валидации
+    bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
+    
+    Console.WriteLine($"Validation result: {isValid}");
+    
+    if (isValid)
+    {
+        Console.WriteLine("Address is valid, saving...");
+        await SaveWalletsToStorage();
+    }
+    else
+    {
+        Console.WriteLine("Address is invalid, showing modal...");
+        
+        // Показываем модальное окно на 2 секунды
+        await ShowInvalidAddressModal();
+        
+        // Очищаем поле адреса
+        wallet.Address = string.Empty;
+        StateHasChanged();
+    }
+}
+
 
     private async Task ShowInvalidAddressModal()
     {
