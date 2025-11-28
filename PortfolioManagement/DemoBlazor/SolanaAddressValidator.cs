@@ -8,8 +8,8 @@ namespace DemoBlazor
     {
         private readonly HttpClient _httpClient;
         
-        // Ваш Vercel API URL
-        private const string VercelApiUrl = "https://vercel-apip-roxima-5ta3rzjvs-igor-devs-projects.vercel.app/api/validate";
+        // Production URL - работает без авторизации
+        private const string VercelApiUrl = "https://vercel-apip-roxima.vercel.app/api/validate";
 
         public SolanaAddressValidator(HttpClient httpClient)
         {
