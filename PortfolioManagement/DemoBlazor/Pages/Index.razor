@@ -173,25 +173,23 @@
         DisableBackdropClick = true
     };
 
-    var dialog = await DialogService.ShowAsync<WalletConfigDialog>("", parameters, options);
-    var result = await dialog.Result;
+    var dialogReference = DialogService.Show<WalletConfigDialog>("", parameters, options);
+    var result = await dialogReference.Result;
 
-    // Получаем данные при закрытии
-    if (result?.Data != null)
-    {
-        var summary = result.Data as WalletConfigDialog.WalletSummary;
-        if (summary != null)
-        {
-            selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
-            selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
-            selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
-            selectedPortfolio.All = summary.TotalAll.ToString("F2");
-            
-            StateHasChanged();
-            await SavePortfoliosToSession();
-        }
-    }
+    // После закрытия диалога получаем данные через componentInstance
+    var dialogInstance = (WalletConfigDialog)dialogReference.Dialog;
+    var summary = dialogInstance.GetSummary();
+    
+    // Обновляем портфолио
+    selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
+    selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
+    selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
+    selectedPortfolio.All = summary.TotalAll.ToString("F2");
+    
+    StateHasChanged();
+    await SavePortfoliosToSession();
 }
+
 
 
 
