@@ -39,20 +39,57 @@
             <MudTh>All</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="№">@context.Number</MudTd>
-            <MudTd DataLabel="Name">
-                <MudTextField @bind-Value="context.Name" 
-                              Margin="Margin.Dense" 
-                              Variant="Variant.Text"
-                              MaxLength="30"
-                              Immediate="false"
-                              OnBlur="SavePortfoliosToSession"/>
-            </MudTd>
-            <MudTd DataLabel="Sol">@context.Sol</MudTd>
-            <MudTd DataLabel="wSOL">@context.WSol</MudTd>
-            <MudTd DataLabel="USDC">@context.Usdc</MudTd>
-            <MudTd DataLabel="All">@context.All</MudTd>
-        </RowTemplate>
+    <MudTd DataLabel="№">@context.Number</MudTd>
+    <MudTd DataLabel="Name">
+        <MudTextField @bind-Value="context.Name" 
+                      Margin="Margin.Dense" 
+                      Variant="Variant.Text"
+                      MaxLength="30"
+                      Immediate="false"
+                      OnBlur="SavePortfoliosToSession"/>
+    </MudTd>
+    <MudTd DataLabel="Sol">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.Sol
+        }
+    </MudTd>
+    <MudTd DataLabel="wSOL">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.WSol
+        }
+    </MudTd>
+    <MudTd DataLabel="USDC">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.Usdc
+        }
+    </MudTd>
+    <MudTd DataLabel="All">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.All
+        }
+    </MudTd>
+</RowTemplate>
+
         <FooterContent>
             <MudTd Style="font-weight: bold;">Total:</MudTd>
             <MudTd></MudTd>
@@ -186,60 +223,84 @@ private async Task RescanAllPortfolios()
 
     try
     {
+        // Проходим по каждому портфелю
         foreach (var portfolio in portfolios)
         {
-            // Загружаем кошельки портфеля
-            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
+            Console.WriteLine($"Rescanning portfolio: {portfolio.Name} (ID: {portfolio.Id})");
+
+            // Загружаем кошельки этого портфеля из sessionStorage
+            var key = $"wallets_{portfolio.Id}";
+            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", key);
+            
             if (string.IsNullOrEmpty(walletsJson))
+            {
+                Console.WriteLine($"No wallets found for portfolio {portfolio.Name}");
                 continue;
+            }
 
             var wallets = JsonSerializer.Deserialize<List<WalletInfo>>(walletsJson);
             if (wallets == null || wallets.Count == 0)
+            {
+                Console.WriteLine($"Empty wallet list for portfolio {portfolio.Name}");
                 continue;
+            }
 
             decimal totalSol = 0, totalWSol = 0, totalUsdc = 0, totalAll = 0;
 
-            // Обновляем балансы для каждого кошелька
+            // Обновляем балансы для каждого кошелька в портфеле
             foreach (var wallet in wallets)
             {
                 if (string.IsNullOrWhiteSpace(wallet.Address))
+                {
+                    Console.WriteLine($"Skipping empty wallet address in {portfolio.Name}");
                     continue;
+                }
 
                 try
                 {
-                    Console.WriteLine($"Rescanning wallet: {wallet.Address} in portfolio: {portfolio.Name}");
+                    Console.WriteLine($"Fetching balances for: {wallet.Address}");
                     
+                    // Вызываем API для получения балансов
                     var url = $"https://vercel-apip-roxima.vercel.app/api/balances?address={wallet.Address}";
                     var response = await Http.GetFromJsonAsync<BalanceResponse>(url);
                     
-                    if (response?.Items != null)
+                    if (response?.Items != null && response.Items.Count > 0)
                     {
                         decimal sol = 0, wsol = 0, usdc = 0;
 
+                        // Парсим балансы по токенам
                         foreach (var item in response.Items)
                         {
-                            var symbol = item.Fungible_info?.Symbol;
+                            var symbol = item.Fungible_info?.Symbol?.ToUpper();
                             var amount = item.Amount_usd ?? 0;
+
+                            Console.WriteLine($"Token: {symbol}, Amount: {amount}");
 
                             if (symbol == "SOL")
                                 sol = amount;
-                            else if (symbol == "wSOL" || symbol == "WSOL")
+                            else if (symbol == "WSOL")
                                 wsol = amount;
                             else if (symbol == "USDC")
                                 usdc = amount;
                         }
 
+                        // Обновляем данные кошелька
                         wallet.Sol = sol.ToString("G");
                         wallet.WSol = wsol.ToString("G");
                         wallet.Usdc = usdc.ToString("G");
                         wallet.All = (sol + wsol + usdc).ToString("F2");
 
+                        // Добавляем к итогам портфеля
                         totalSol += sol;
                         totalWSol += wsol;
                         totalUsdc += usdc;
-                        totalAll += sol + wsol + usdc;
-                        
-                        Console.WriteLine($"Updated wallet: Sol={sol}, wSOL={wsol}, USDC={usdc}");
+                        totalAll += (sol + wsol + usdc);
+
+                        Console.WriteLine($"Wallet updated: Sol={sol}, wSOL={wsol}, USDC={usdc}, Total={sol + wsol + usdc}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"No balance data returned for {wallet.Address}");
                     }
                 }
                 catch (Exception ex)
@@ -248,21 +309,29 @@ private async Task RescanAllPortfolios()
                 }
             }
 
-            // Сохраняем обновленные кошельки
+            // Сохраняем обновленные кошельки обратно в sessionStorage
             var updatedWalletsJson = JsonSerializer.Serialize(wallets);
-            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", $"wallets_{portfolio.Id}", updatedWalletsJson);
+            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, updatedWalletsJson);
+            Console.WriteLine($"Saved updated wallets for portfolio {portfolio.Name}");
 
             // Обновляем суммы в портфеле
             portfolio.Sol = totalSol.ToString("F2");
             portfolio.WSol = totalWSol.ToString("F2");
             portfolio.Usdc = totalUsdc.ToString("F2");
             portfolio.All = totalAll.ToString("F2");
-            
-            Console.WriteLine($"Portfolio {portfolio.Name} updated: Total={totalAll}");
+
+            Console.WriteLine($"Portfolio {portfolio.Name} totals: Sol={totalSol}, wSOL={totalWSol}, USDC={totalUsdc}, All={totalAll}");
         }
 
+        // Сохраняем обновленные портфели
         await SavePortfoliosToSession();
+        Console.WriteLine("All portfolios rescanned and saved");
+        
         StateHasChanged();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in RescanAllPortfolios: {ex.Message}");
     }
     finally
     {
