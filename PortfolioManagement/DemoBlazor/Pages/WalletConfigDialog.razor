@@ -1,10 +1,12 @@
 @using Microsoft.JSInterop
 @using MudBlazor
 @using System.Linq
+@using System.Text.Json
 @inject IJSRuntime JSRuntime
 @inject IDialogService DialogService
 @inject SolanaAddressValidator AddressValidator
 @inject SolanaBalanceService BalanceService
+
 
 <MudDialog>
     <TitleContent>
@@ -74,8 +76,6 @@
         @context?.All
     }
 </MudTd>
-
-
     </RowTemplate>
     <FooterContent>
         <MudTd Style="font-weight: bold;">Total:</MudTd>
@@ -86,7 +86,6 @@
         <MudTd Style="font-weight: bold;">@GetTotalAll().ToString("F2")</MudTd>
     </FooterContent>
 </MudTable>
-
         </MudPaper>
 
         <div class="d-flex gap-2 mt-4">
@@ -107,7 +106,7 @@
     private Wallet? selectedWallet;
     private Dictionary<string, bool> loadingWallets = new Dictionary<string, bool>();
     
-        protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
         await LoadWalletsFromStorage();
     }
@@ -136,41 +135,38 @@
             return;
         }
 
-        var isDuplicate = wallets.Any(w => 
-            w != wallet && 
-            !string.IsNullOrWhiteSpace(w.Address) && 
-            w.Address.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase));
-        
-        if (isDuplicate)
+        Console.WriteLine($"Validating address: {wallet.Address}");
+
+        // Единая проверка на дубликат по ВСЕМ портфелям (включая текущий)
+        if (await IsAddressDuplicate(wallet))
         {
-            Console.WriteLine($"Duplicate address detected: {wallet.Address}");
-            await ShowErrorModal("This wallet is already here");
+            Console.WriteLine("Duplicate address found");
+            await ShowErrorModal("Invalid Solana address");
             wallet.Address = string.Empty;
             StateHasChanged();
             return;
         }
 
-        Console.WriteLine($"Starting validation for address: {wallet.Address}");
-        
-        bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
-        
-        Console.WriteLine($"Validation result: {isValid}");
-        
+        // Валидация через API
+        var isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
+
         if (isValid)
         {
             loadingWallets[wallet.Address] = true;
             StateHasChanged();
-            Console.WriteLine("Address is valid, fetching balances...");
             
+            Console.WriteLine("Address is valid, fetching balances...");
+
             var balances = await BalanceService.GetBalancesAsync(wallet.Address);
             
+            loadingWallets[wallet.Address] = false;
+
             wallet.Sol = balances.Sol.ToString("G");
             wallet.WSol = balances.WSol.ToString("G");
             wallet.Usdc = balances.Usdc.ToString("G");
             wallet.All = balances.TotalUsd.ToString("F2");
-            
+
             await SaveWalletsToStorage();
-            loadingWallets[wallet.Address] = false;
             StateHasChanged();
         }
         else
@@ -179,6 +175,53 @@
             await ShowErrorModal("Invalid Solana address");
             wallet.Address = string.Empty;
             StateHasChanged();
+        }
+    }
+
+    private async Task<bool> IsAddressDuplicate(Wallet currentWallet)
+    {
+        try
+        {
+            var address = currentWallet.Address;
+
+            // Проверка в текущем портфеле
+            if (wallets.Any(w => w != currentWallet && w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // Проверка в других портфелях
+            var portfoliosJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
+            if (string.IsNullOrEmpty(portfoliosJson))
+                return false;
+
+            var portfolios = JsonSerializer.Deserialize<List<PortfolioInfo>>(portfoliosJson);
+            if (portfolios == null)
+                return false;
+
+            foreach (var portfolio in portfolios)
+            {
+                // Пропускаем текущий портфель (уже проверили выше)
+                if (portfolio.Id == PortfolioId)
+                    continue;
+
+                var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
+                if (string.IsNullOrEmpty(walletsJson))
+                    continue;
+
+                var otherWallets = JsonSerializer.Deserialize<List<Wallet>>(walletsJson);
+                if (otherWallets != null && otherWallets.Any(w => w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking duplicate address: {ex.Message}");
+            return false;
         }
     }
 
@@ -235,7 +278,7 @@
         
         if (!string.IsNullOrEmpty(json))
         {
-            wallets = System.Text.Json.JsonSerializer.Deserialize<List<Wallet>>(json) ?? new List<Wallet>();
+            wallets = JsonSerializer.Deserialize<List<Wallet>>(json) ?? new List<Wallet>();
         }
         else
         {
@@ -251,7 +294,7 @@
     private async Task SaveWalletsToStorage()
     {
         var key = $"wallets_{PortfolioId}";
-        var json = System.Text.Json.JsonSerializer.Serialize(wallets);
+        var json = JsonSerializer.Serialize(wallets);
         await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, json);
     }
 
@@ -292,6 +335,11 @@
             TotalUsdc = GetTotalUsdc(),
             TotalAll = GetTotalAll()
         };
+    }
+
+    private class PortfolioInfo
+    {
+        public Guid Id { get; set; }
     }
 
     public class WalletSummary
