@@ -37,7 +37,7 @@
             <MudTh>Sol</MudTh>
             <MudTh>wSOL</MudTh>
             <MudTh>USDC</MudTh>
-            <MudTh>All</MudTh>
+            <MudTh>All (usd) </MudTh>
         </HeaderContent>
         <RowTemplate>
     <MudTd DataLabel="№">@context.Number</MudTd>
@@ -121,36 +121,91 @@
 
 
     private async Task LoadPortfoliosFromSession()
+{
+    try
     {
-        try
+        var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
+        
+        if (!string.IsNullOrEmpty(json))
         {
-            var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
-            
-            if (!string.IsNullOrEmpty(json))
+            var loadedPortfolios = JsonSerializer.Deserialize<List<Portfolio>>(json);
+            if (loadedPortfolios != null && loadedPortfolios.Count > 0)
             {
-                var loadedPortfolios = JsonSerializer.Deserialize<List<Portfolio>>(json);
-                if (loadedPortfolios != null && loadedPortfolios.Count > 0)
-                {
-                    portfolios = loadedPortfolios;
-                    return;
-                }
+                portfolios = loadedPortfolios;
+                return;
             }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading portfolios: {ex.Message}");
-        }
-
-
-        // Если данных нет или произошла ошибка, создаем начальные данные
-        portfolios = new List<Portfolio>
-        {
-            new Portfolio { Number = 1, Id = Guid.NewGuid() },
-            new Portfolio { Number = 2, Id = Guid.NewGuid() },
-            new Portfolio { Number = 3, Id = Guid.NewGuid() }
-        };
-        await SavePortfoliosToSession();
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error loading portfolios: {ex.Message}");
+    }
+
+    // Создаем начальные данные при первом запуске
+    await CreateInitialData();
+}
+
+private async Task CreateInitialData()
+{
+    Console.WriteLine("Creating initial data...");
+
+    // Создаем портфели
+    var meteoraId = Guid.NewGuid();
+    var orcaId = Guid.NewGuid();
+    var raydiumId = Guid.NewGuid();
+
+    portfolios = new List<Portfolio>
+    {
+        new Portfolio { Number = 1, Id = meteoraId, Name = "Meteora" },
+        new Portfolio { Number = 2, Id = orcaId, Name = "Orca" },
+        new Portfolio { Number = 3, Id = raydiumId, Name = "Raydium" }
+    };
+
+    // Создаем кошельки для Meteora
+    var meteoraWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "9DiruRpjnAnzhn6ts5HGLouHtJrT1JGsPbXNYCrFz2ad" },
+        new WalletInfo { Number = 2, Address = "9d9mb8kooFfaD3SctgZtkxQypkshx6ezhbKio89ixyy2" },
+        new WalletInfo { Number = 3, Address = "DQ9weJhfiU4iL5LUoeshDrm5KxDHCMiSbnnKJz7buMcf" }
+    };
+
+    // Создаем кошельки для Orca
+    var orcaWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE" },
+        new WalletInfo { Number = 2, Address = "9tXiuRRw7kbejLhZXtxDxYs2REe43uH2e7k1kocgdM9B" },
+        new WalletInfo { Number = 3, Address = "3wijQvPKm6jHQrAkfPpok5o8WjCWPm1DGG17NmeW8q1w" }
+    };
+
+    // Создаем кошельки для Raydium
+    var raydiumWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "AS5MV3ear4NZPMWXbCsEz3AdbCaXEnq4ChdaWsvLgkcM" },
+        new WalletInfo { Number = 2, Address = "14H4cmzyPkiysPFTJvzngwTpa4GmKiqRSSpo9wT2Bhxf" },
+        new WalletInfo { Number = 3, Address = "5EgCcjkuE42YyTZY4QG8qTioUwNh6agTvJuNRyEqcqV1" }
+    };
+
+    // Сохраняем кошельки в sessionStorage
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{meteoraId}", 
+        JsonSerializer.Serialize(meteoraWallets));
+
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{orcaId}", 
+        JsonSerializer.Serialize(orcaWallets));
+
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{raydiumId}", 
+        JsonSerializer.Serialize(raydiumWallets));
+
+    await SavePortfoliosToSession();
+
+    Console.WriteLine("Initial data created, starting rescan...");
+
+    // Автоматически запускаем Rescan
+    await RescanAllPortfolios();
+}
+
 
 
     private async Task SavePortfoliosToSession()
