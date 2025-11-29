@@ -12,42 +12,79 @@
     </TitleContent>
     <DialogContent>
         <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
-            <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
-                      @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
-                <HeaderContent>
-                    <MudTh Style="width: 60px;">№</MudTh>
-                    <MudTh>Address</MudTh>
-                    <MudTh Style="width: 80px;">Sol</MudTh>
-                    <MudTh Style="width: 80px;">wSOL</MudTh>
-                    <MudTh Style="width: 80px;">USDC</MudTh>
-                    <MudTh Style="width: 80px;">All</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="№">@context?.Number</MudTd>
-                    <MudTd DataLabel="Address">
-                        @if (context != null)
-                        {
-                            <MudTextField @bind-Value="@context.Address" 
-                                          MaxLength="60" 
-                                          OnKeyUp="@(async (e) => await OnAddressKeyUp(e, context))"
-                                          OnBlur="@(async () => await OnAddressBlur(context))"
-                                          Immediate="false" />
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Sol">@context?.Sol</MudTd>
-                    <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
-                    <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
-                    <MudTd DataLabel="All">@context?.All</MudTd>
-                </RowTemplate>
-                <FooterContent>
-                    <MudTd Style="font-weight: bold;">Total:</MudTd>
-                    <MudTd></MudTd>
-                    <MudTd Style="font-weight: bold;">@GetTotalSol().ToString("F2")</MudTd>
-                    <MudTd Style="font-weight: bold;">@GetTotalWSol().ToString("F2")</MudTd>
-                    <MudTd Style="font-weight: bold;">@GetTotalUsdc().ToString("F2")</MudTd>
-                    <MudTd Style="font-weight: bold;">@GetTotalAll().ToString("F2")</MudTd>
-                </FooterContent>
-            </MudTable>
+           <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
+          @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
+    <HeaderContent>
+        <MudTh Style="width: 60px;">№</MudTh>
+        <MudTh>Address</MudTh>
+        <MudTh Style="width: 80px;">Sol</MudTh>
+        <MudTh Style="width: 80px;">wSOL</MudTh>
+        <MudTh Style="width: 80px;">USDC</MudTh>
+        <MudTh Style="width: 80px;">All (usd)</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context?.Number</MudTd>
+        <MudTd DataLabel="Address">
+            @if (context != null)
+            {
+                <MudTextField @bind-Value="@context.Address" 
+                              MaxLength="60" 
+                              OnKeyUp="@(async (e) => await OnAddressKeyUp(e, context))"
+                              OnBlur="@(async () => await OnAddressBlur(context))"
+                              Immediate="false" />
+            }
+        </MudTd>
+        <MudTd DataLabel="Sol">
+            @if (isLoadingData && context != null && string.IsNullOrEmpty(context.Sol))
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                @context?.Sol
+            }
+        </MudTd>
+        <MudTd DataLabel="wSOL">
+            @if (isLoadingData && context != null && string.IsNullOrEmpty(context.WSol))
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                @context?.WSol
+            }
+        </MudTd>
+        <MudTd DataLabel="USDC">
+            @if (isLoadingData && context != null && string.IsNullOrEmpty(context.Usdc))
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                @context?.Usdc
+            }
+        </MudTd>
+        <MudTd DataLabel="All (usd)">
+            @if (isLoadingData && context != null && string.IsNullOrEmpty(context.All))
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                @context?.All
+            }
+        </MudTd>
+    </RowTemplate>
+    <FooterContent>
+        <MudTd Style="font-weight: bold;">Total:</MudTd>
+        <MudTd></MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalWSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalUsdc().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalAll().ToString("F2")</MudTd>
+    </FooterContent>
+</MudTable>
+
         </MudPaper>
 
         <div class="d-flex gap-2 mt-4">
@@ -66,6 +103,7 @@
 
     private List<Wallet> wallets = new List<Wallet>();
     private Wallet? selectedWallet;
+    private bool isLoadingData = false;
     
         protected override async Task OnInitializedAsync()
     {
@@ -118,6 +156,8 @@
         
         if (isValid)
         {
+            isLoadingData = true;
+            StateHasChanged();
             Console.WriteLine("Address is valid, fetching balances...");
             
             var balances = await BalanceService.GetBalancesAsync(wallet.Address);
@@ -128,6 +168,7 @@
             wallet.All = balances.TotalUsd.ToString("F2");
             
             await SaveWalletsToStorage();
+            isLoadingData = false;
             StateHasChanged();
         }
         else
