@@ -37,7 +37,7 @@ namespace DemoBlazor
                 Console.WriteLine($"API Response Status: {response.StatusCode}");
                 Console.WriteLine($"API Response Body: {body}");
 
-                // Проверяем код ответа 400 или наличие "error" в теле ответа
+                // check the code 400 or "error"
                 if ((int)response.StatusCode == 400 || body.Contains("\"error\""))
                 {
                     Console.WriteLine("Validation FAILED - Invalid address");

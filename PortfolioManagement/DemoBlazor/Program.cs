@@ -9,7 +9,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddMudServices();
 
-// ИСПРАВЛЕННАЯ регистрация HttpClient - БЕЗ BaseAddress для внешних API
+// registration HttpClient 
 builder.Services.AddScoped(sp => new HttpClient());
 builder.Services.AddScoped<SolanaAddressValidator>();
 builder.Services.AddScoped<SolanaBalanceService>();

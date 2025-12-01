@@ -139,7 +139,7 @@
 
         Console.WriteLine($"Validating address: {wallet.Address}");
 
-        // Единая проверка на дубликат по ВСЕМ портфелям (включая текущий)
+        // Single check for duplicates for ALL portfolios (including the current one)
         if (await IsAddressDuplicate(wallet))
         {
             Console.WriteLine("Duplicate address found");
@@ -149,7 +149,7 @@
             return;
         }
 
-        // Валидация через API
+        // Validation on API
         var isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
 
         if (isValid)
@@ -186,7 +186,7 @@
     {
         var address = currentWallet.Address;
 
-        // Проверка в текущем портфеле (исключаем сам проверяемый кошелек)
+        // Checking in the current portfolio (excluding the wallet being checked)
         if (wallets.Any(w => w != currentWallet && 
                             !string.IsNullOrWhiteSpace(w.Address) && 
                             w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
@@ -195,7 +195,7 @@
             return true;
         }
 
-        // Проверка в других портфелях
+        // Check in other portfolios
         var portfoliosJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
         if (string.IsNullOrEmpty(portfoliosJson))
             return false;
@@ -206,7 +206,7 @@
 
         foreach (var portfolio in portfolios)
         {
-            // Пропускаем текущий портфель (уже проверили выше)
+            // Skip the current portfolio (already checked above)
             if (portfolio.Id == PortfolioId)
                 continue;
 

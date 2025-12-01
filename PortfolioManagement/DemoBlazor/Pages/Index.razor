@@ -141,7 +141,7 @@
         Console.WriteLine($"Error loading portfolios: {ex.Message}");
     }
 
-    // Создаем начальные данные при первом запуске
+    // Create initial data 
     await CreateInitialData();
 }
 
@@ -161,7 +161,7 @@ private async Task CreateInitialData()
         new Portfolio { Number = 3, Id = raydiumId, Name = "Raydium" }
     };
 
-    // Создаем кошельки для Meteora
+    // Create wallets for Meteora
     var meteoraWallets = new List<WalletInfo>
     {
         new WalletInfo { Number = 1, Address = "9DiruRpjnAnzhn6ts5HGLouHtJrT1JGsPbXNYCrFz2ad" },
@@ -169,7 +169,7 @@ private async Task CreateInitialData()
         new WalletInfo { Number = 3, Address = "DQ9weJhfiU4iL5LUoeshDrm5KxDHCMiSbnnKJz7buMcf" }
     };
 
-    // Создаем кошельки для Orca
+    // Create wallets for Orca
     var orcaWallets = new List<WalletInfo>
     {
         new WalletInfo { Number = 1, Address = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE" },
@@ -177,7 +177,7 @@ private async Task CreateInitialData()
         new WalletInfo { Number = 3, Address = "3wijQvPKm6jHQrAkfPpok5o8WjCWPm1DGG17NmeW8q1w" }
     };
 
-    // Создаем кошельки для Raydium
+    // Create wallets for Raydium
     var raydiumWallets = new List<WalletInfo>
     {
         new WalletInfo { Number = 1, Address = "AS5MV3ear4NZPMWXbCsEz3AdbCaXEnq4ChdaWsvLgkcM" },
@@ -185,7 +185,7 @@ private async Task CreateInitialData()
         new WalletInfo { Number = 3, Address = "5EgCcjkuE42YyTZY4QG8qTioUwNh6agTvJuNRyEqcqV1" }
     };
 
-    // Сохраняем кошельки в sessionStorage
+    // Save wallets in sessionStorage
     await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
         $"wallets_{meteoraId}", 
         JsonSerializer.Serialize(meteoraWallets));
@@ -202,7 +202,7 @@ private async Task CreateInitialData()
 
     Console.WriteLine("Initial data created, starting rescan...");
 
-    // Автоматически запускаем Rescan
+    // automate run Rescan
     await RescanAllPortfolios();
 }
 

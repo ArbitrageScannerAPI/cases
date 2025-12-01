@@ -8,7 +8,7 @@ namespace DemoBlazor
     {
         private readonly HttpClient _httpClient;
         
-        // Production URL - работает без авторизации
+        // Production URL !
         private const string VercelApiUrl = "https://vercel-apip-roxima.vercel.app/api/validate";
 
         public SolanaAddressValidator(HttpClient httpClient)
