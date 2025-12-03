@@ -2,455 +2,379 @@
 @inject HttpClient Http
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
-@inject SolanaBalanceService BalanceService
-@using System.Net.Http.Json
+@inject ITokenValidationService TokenValidationService
+@inject IPoolsService PoolsService
+@using DexResearchArbitrage.Models
+@using DexResearchArbitrage.Services
 @using System.Text.Json
-@using Microsoft.JSInterop
-<!--@using MudBlazor-->
-
 
 <MudPaper Class="pa-4">
-    <MudText Typo="Typo.h5">Portfolios</MudText>
+    <MudText Typo="Typo.h5">DEX Pool Explorer</MudText>
     <MudDivider Class="my-2" />
     
-    <div class="d-flex gap-2 mb-4">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio" Disabled="@(portfolios.Count >= 5)">Add new</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanAllPortfolios">Rescan</MudButton>
-    </div>
-
-
-    <MudTable 
-        Items="@portfolios" 
-        T="Portfolio" 
-        Hover="true"
-        Bordered="true"
-        Breakpoint="Breakpoint.Sm"
-        FixedHeader="true"
-        Height="calc(100vh - 250px)"
-        @bind-SelectedItem="selectedPortfolio"
-        RowStyleFunc="@SelectedRowStyleFunc">
-        <HeaderContent>
-            <MudTh Style="width: 60px;">№</MudTh>
-            <MudTh>Name</MudTh>
-            <MudTh>Sol</MudTh>
-            <MudTh>wSOL</MudTh>
-            <MudTh>USDC</MudTh>
-            <MudTh>All (usd) </MudTh>
-        </HeaderContent>
-        <RowTemplate>
-    <MudTd DataLabel="№">@context.Number</MudTd>
-    <MudTd DataLabel="Name">
-        <MudTextField @bind-Value="context.Name" 
-                      Margin="Margin.Dense" 
-                      Variant="Variant.Text"
-                      MaxLength="30"
-                      Immediate="false"
-                      OnBlur="SavePortfoliosToSession"/>
-    </MudTd>
-    <MudTd DataLabel="Sol">
-        @if (isRescanning)
-        {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-        }
-        else
-        {
-            @context.Sol
-        }
-    </MudTd>
-    <MudTd DataLabel="wSOL">
-        @if (isRescanning)
-        {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-        }
-        else
-        {
-            @context.WSol
-        }
-    </MudTd>
-    <MudTd DataLabel="USDC">
-        @if (isRescanning)
-        {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-        }
-        else
-        {
-            @context.Usdc
-        }
-    </MudTd>
-    <MudTd DataLabel="All">
-        @if (isRescanning)
-        {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-        }
-        else
-        {
-            @context.All
-        }
-    </MudTd>
-</RowTemplate>
-
-        <FooterContent>
-            <MudTd Style="font-weight: bold;">Total:</MudTd>
-            <MudTd></MudTd>
-            <MudTd Style="font-weight: bold;">@GetTotalPortfolioSol().ToString("F2")</MudTd>
-            <MudTd Style="font-weight: bold;">@GetTotalPortfolioWSol().ToString("F2")</MudTd>
-            <MudTd Style="font-weight: bold;">@GetTotalPortfolioUsdc().ToString("F2")</MudTd>
-            <MudTd Style="font-weight: bold;">@GetTotalPortfolioAll().ToString("F2")</MudTd>
-        </FooterContent>
-    </MudTable>
+    <!-- Network and Token Input Section -->
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" md="4">
+            <MudSelect T="Network" 
+                       Label="Select Network" 
+                       @bind-Value="selectedNetwork"
+                       Required="true"
+                       RequiredError="Please select a network"
+                       Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
+                <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
+                <MudSelectItem Value="Network.Ethereum">Ethereum</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            <MudTextField @bind-Value="tokenAddress"
+                          Label="Token Address"
+                          Placeholder="Enter or paste token address"
+                          Variant="Variant.Outlined"
+                          Immediate="false"
+                          OnBlur="OnTokenAddressBlur"
+                          Disabled="@(selectedNetwork == Network.None)"
+                          Error="@hasValidationError"
+                          ErrorText="@validationErrorMessage"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(isValidating ? Icons.Material.Filled.HourglassEmpty : Icons.Material.Filled.Search)"
+                          AdornmentColor="Color.Primary" />
+        </MudItem>
+        
+        <MudItem xs="12" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       OnClick="ValidateAndLoadPools"
+                       Disabled="@(selectedNetwork == Network.None || string.IsNullOrWhiteSpace(tokenAddress) || isValidating || isLoadingPools)">
+                @if (isValidating || isLoadingPools)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Loading...</span>
+                }
+                else
+                {
+                    <span>Search Pools</span>
+                }
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+    
+    <!-- Validated Token Info -->
+    @if (validatedToken != null && validatedToken.IsValid)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
+            Token validated: @validatedToken.TokenSymbol (@validatedToken.TokenAddress)
+        </MudAlert>
+    }
+    
+    <!-- Filters Section (shown only when pools are loaded) -->
+    @if (allPools.Count > 0)
+    {
+        <PoolFilters Filters="@filters" 
+                     AvailableSecondTokens="@availableSecondTokens"
+                     OnFiltersChanged="ApplyFilters" />
+    }
+    
+    <!-- Pools Table -->
+    @if (allPools.Count > 0)
+    {
+        <MudTable Items="@filteredPools" 
+                  T="PoolInfo" 
+                  Hover="true"
+                  Bordered="true"
+                  Breakpoint="Breakpoint.Sm"
+                  FixedHeader="true"
+                  Height="calc(100vh - 450px)"
+                  Dense="true"
+                  OnRowClick="OnPoolRowClick"
+                  RowStyleFunc="@SelectedRowStyleFunc"
+                  @bind-SelectedItem="selectedPool">
+            <HeaderContent>
+                <MudTh Style="width: 50px;">№</MudTh>
+                <MudTh>DEX</MudTh>
+                <MudTh>Pool Address</MudTh>
+                <MudTh>Second Token</MudTh>
+                <MudTh>TVL (USD)</MudTh>
+                <MudTh>Swaps Count</MudTh>
+                <MudTh>Arbitration</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="№">@(filteredPools.IndexOf(context) + 1)</MudTd>
+                <MudTd DataLabel="DEX">@context.Dex</MudTd>
+                <MudTd DataLabel="Pool Address">
+                    <MudTooltip Text="@context.PoolAddress">
+                        <span>@TruncateAddress(context.PoolAddress)</span>
+                    </MudTooltip>
+                </MudTd>
+                <MudTd DataLabel="Second Token">
+                    @if (!string.IsNullOrEmpty(context.SecondTokenSymbol))
+                    {
+                        <MudTooltip Text="@context.SecondTokenAddress">
+                            <span>@context.SecondTokenSymbol</span>
+                        </MudTooltip>
+                    }
+                    else
+                    {
+                        <MudTooltip Text="@context.SecondTokenAddress">
+                            <span>@TruncateAddress(context.SecondTokenAddress)</span>
+                        </MudTooltip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="TVL (USD)">@context.TvlUsd.ToString("N2")</MudTd>
+                <MudTd DataLabel="Swaps Count">@context.CountSwaps</MudTd>
+                <MudTd DataLabel="Arbitration">
+                    @if (context.ArbitrationFlag)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" />
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        
+        <!-- Total Records Info -->
+        <MudPaper Class="pa-2 mt-2" Elevation="0">
+            <MudText Typo="Typo.body2">
+                Total records: <strong>@filteredPools.Count</strong>
+                @if (filters.HasActiveFilters())
+                {
+                    <span> (filtered from @allPools.Count)</span>
+                }
+            </MudText>
+        </MudPaper>
+    }
+    else if (isLoadingPools)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+        <MudText Align="Align.Center">Loading pools...</MudText>
+    }
+    else if (validatedToken != null && validatedToken.IsValid && allPools.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-4">
+            No pools found for this token on @selectedNetwork.ToDisplayString().
+        </MudAlert>
+    }
 </MudPaper>
 
-
 @code {
-    private List<Portfolio> portfolios = new List<Portfolio>();
-    private Portfolio? selectedPortfolio;
-    private bool isInitialized = false;
+    // State
+    private Network selectedNetwork = Network.None;
+    private string tokenAddress = string.Empty;
+    private TokenValidationResult? validatedToken;
+    
+    // Pools data
+    private List<PoolInfo> allPools = new();
+    private List<PoolInfo> filteredPools = new();
+    private PoolInfo? selectedPool;
+    
+    // Filters
+    private PoolFiltersModel filters = new();
+    private List<string> availableSecondTokens = new();
+    
+    // UI state
+    private bool isValidating = false;
+    private bool isLoadingPools = false;
+    private bool hasValidationError = false;
+    private string validationErrorMessage = string.Empty;
 
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task OnTokenAddressBlur()
     {
-        if (firstRender && !isInitialized)
+        // Optional: Auto-validate on blur
+        // await ValidateAndLoadPools();
+    }
+
+    private async Task ValidateAndLoadPools()
+    {
+        if (selectedNetwork == Network.None || string.IsNullOrWhiteSpace(tokenAddress))
+            return;
+
+        // Reset state
+        hasValidationError = false;
+        validationErrorMessage = string.Empty;
+        allPools.Clear();
+        filteredPools.Clear();
+        filters.Reset();
+        availableSecondTokens.Clear();
+
+        // Step 1: Validate token
+        isValidating = true;
+        StateHasChanged();
+
+        try
         {
-            await LoadPortfoliosFromSession();
-            isInitialized = true;
+            validatedToken = await TokenValidationService.ValidateTokenAsync(selectedNetwork, tokenAddress.Trim());
+
+            if (!validatedToken.IsValid)
+            {
+                // Show error dialog similar to original project
+                await ShowInvalidTokenDialog(validatedToken.ErrorMessage ?? "Invalid token address");
+                
+                // Clear input and set error state
+                tokenAddress = string.Empty;
+                hasValidationError = true;
+                validationErrorMessage = validatedToken.ErrorMessage ?? "Invalid token address";
+                validatedToken = null;
+                
+                isValidating = false;
+                StateHasChanged();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Validation error: {ex.Message}");
+            hasValidationError = true;
+            validationErrorMessage = "Error validating token";
+            isValidating = false;
+            StateHasChanged();
+            return;
+        }
+
+        isValidating = false;
+        
+        // Step 2: Load pools
+        isLoadingPools = true;
+        StateHasChanged();
+
+        try
+        {
+            allPools = await PoolsService.GetPoolsByTokenAsync(selectedNetwork, tokenAddress.Trim());
+            
+            // Extract unique second tokens for filter dropdown
+            availableSecondTokens = allPools
+                .Select(p => !string.IsNullOrEmpty(p.SecondTokenSymbol) 
+                    ? $"{p.SecondTokenSymbol} ({TruncateAddress(p.SecondTokenAddress)})" 
+                    : p.SecondTokenAddress)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            
+            // Apply initial (empty) filters
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading pools: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingPools = false;
             StateHasChanged();
         }
     }
 
-
-    private async Task LoadPortfoliosFromSession()
-{
-    try
+    private void ApplyFilters()
     {
-        var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
-        
-        if (!string.IsNullOrEmpty(json))
-        {
-            var loadedPortfolios = JsonSerializer.Deserialize<List<Portfolio>>(json);
-            if (loadedPortfolios != null && loadedPortfolios.Count > 0)
-            {
-                portfolios = loadedPortfolios;
-                return;
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error loading portfolios: {ex.Message}");
+        filteredPools = FilterPools(allPools, filters);
+        StateHasChanged();
     }
 
-    // Create initial data 
-    await CreateInitialData();
-}
-
-private async Task CreateInitialData()
-{
-    Console.WriteLine("Creating initial data...");
-
-    // Создаем портфели
-    var meteoraId = Guid.NewGuid();
-    var orcaId = Guid.NewGuid();
-    var raydiumId = Guid.NewGuid();
-
-    portfolios = new List<Portfolio>
+    /// <summary>
+    /// Client-side filtering logic (separated for testability)
+    /// </summary>
+    private List<PoolInfo> FilterPools(List<PoolInfo> pools, PoolFiltersModel filterModel)
     {
-        new Portfolio { Number = 1, Id = meteoraId, Name = "Meteora" },
-        new Portfolio { Number = 2, Id = orcaId, Name = "Orca" },
-        new Portfolio { Number = 3, Id = raydiumId, Name = "Raydium" }
-    };
+        var result = pools.AsEnumerable();
 
-    // Create wallets for Meteora
-    var meteoraWallets = new List<WalletInfo>
-    {
-        new WalletInfo { Number = 1, Address = "9DiruRpjnAnzhn6ts5HGLouHtJrT1JGsPbXNYCrFz2ad" },
-        new WalletInfo { Number = 2, Address = "9d9mb8kooFfaD3SctgZtkxQypkshx6ezhbKio89ixyy2" },
-        new WalletInfo { Number = 3, Address = "DQ9weJhfiU4iL5LUoeshDrm5KxDHCMiSbnnKJz7buMcf" }
-    };
-
-    // Create wallets for Orca
-    var orcaWallets = new List<WalletInfo>
-    {
-        new WalletInfo { Number = 1, Address = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE" },
-        new WalletInfo { Number = 2, Address = "9tXiuRRw7kbejLhZXtxDxYs2REe43uH2e7k1kocgdM9B" },
-        new WalletInfo { Number = 3, Address = "3wijQvPKm6jHQrAkfPpok5o8WjCWPm1DGG17NmeW8q1w" }
-    };
-
-    // Create wallets for Raydium
-    var raydiumWallets = new List<WalletInfo>
-    {
-        new WalletInfo { Number = 1, Address = "AS5MV3ear4NZPMWXbCsEz3AdbCaXEnq4ChdaWsvLgkcM" },
-        new WalletInfo { Number = 2, Address = "14H4cmzyPkiysPFTJvzngwTpa4GmKiqRSSpo9wT2Bhxf" },
-        new WalletInfo { Number = 3, Address = "5EgCcjkuE42YyTZY4QG8qTioUwNh6agTvJuNRyEqcqV1" }
-    };
-
-    // Save wallets in sessionStorage
-    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
-        $"wallets_{meteoraId}", 
-        JsonSerializer.Serialize(meteoraWallets));
-
-    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
-        $"wallets_{orcaId}", 
-        JsonSerializer.Serialize(orcaWallets));
-
-    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
-        $"wallets_{raydiumId}", 
-        JsonSerializer.Serialize(raydiumWallets));
-
-    await SavePortfoliosToSession();
-
-    Console.WriteLine("Initial data created, starting rescan...");
-
-    // automate run Rescan
-    await RescanAllPortfolios();
-}
-
-
-
-    private async Task SavePortfoliosToSession()
-    {
-        try
+        // Filter by second token addresses
+        if (filterModel.SecondTokenAddresses.Count > 0)
         {
-            var json = JsonSerializer.Serialize(portfolios);
-            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "portfolios", json);
+            result = result.Where(p => 
+                filterModel.SecondTokenAddresses.Any(f => 
+                    f.Contains(p.SecondTokenAddress) || 
+                    f.Contains(p.SecondTokenSymbol ?? "")));
         }
-        catch (Exception ex)
+
+        // Filter by minimum TVL
+        if (filterModel.MinTvlUsd > 0)
         {
-            Console.WriteLine($"Error saving portfolios: {ex.Message}");
+            result = result.Where(p => p.TvlUsd >= filterModel.MinTvlUsd);
         }
+
+        // Filter by swaps count
+        if (filterModel.MinSwapCount > 0)
+        {
+            result = result.Where(p => p.CountSwaps >= filterModel.MinSwapCount);
+        }
+
+        // Filter by swaps date (if swap has timestamp)
+        // TODO: Adjust based on actual API response - this assumes LastSwapTimestamp field
+        if (filterModel.SwapsFromDate.HasValue)
+        {
+            result = result.Where(p => 
+                p.LastSwapTimestamp.HasValue && 
+                p.LastSwapTimestamp.Value >= filterModel.SwapsFromDate.Value);
+        }
+
+        // Filter by price difference percentage
+        if (filterModel.MinPriceDiffPercent > 0)
+        {
+            result = result.Where(p => p.PriceDiffPercent >= filterModel.MinPriceDiffPercent);
+        }
+
+        return result.ToList();
     }
 
-
-    private async Task AddNewPortfolio()
+    private async Task ShowInvalidTokenDialog(string message)
     {
-        var newPortfolio = new Portfolio 
-        { 
-            Number = portfolios.Count + 1,
-            Id = Guid.NewGuid()
+        var parameters = new DialogParameters
+        {
+            { "Message", message }
         };
-        portfolios.Add(newPortfolio);
-        await SavePortfoliosToSession();
-    }
 
-
-    private async Task DeleteSelectedPortfolio()
-    {
-        if (selectedPortfolio != null)
+        var options = new DialogOptions
         {
-            // Удаляем также кошельки этого портфеля из sessionStorage
-            await JSRuntime.InvokeVoidAsync("sessionStorage.removeItem", $"wallets_{selectedPortfolio.Id}");
-            
-            portfolios.Remove(selectedPortfolio);
-            RenumberPortfolios();
-            selectedPortfolio = null;
-            await SavePortfoliosToSession();
-        }
+            CloseButton = true,
+            CloseOnEscapeKey = true
+        };
+
+        await DialogService.ShowAsync<InvalidTokenDialog>("Invalid Token", parameters, options);
     }
 
-
-    private void RenumberPortfolios()
+    private void OnPoolRowClick(TableRowClickEventArgs<PoolInfo> args)
     {
-        for (int i = 0; i < portfolios.Count; i++)
-        {
-            portfolios[i].Number = i + 1;
-        }
+        selectedPool = args.Item;
+        
+        // TODO: Implement pool click action (e.g., navigate to pool details, open external link)
+        Console.WriteLine($"Pool clicked: {args.Item?.PoolAddress}");
+        
+        // Extension point for future functionality
+        HandlePoolSelection(args.Item);
     }
 
-
-    private string SelectedRowStyleFunc(Portfolio portfolio, int rowNumber)
+    /// <summary>
+    /// Extension point for handling pool selection
+    /// </summary>
+    private void HandlePoolSelection(PoolInfo? pool)
     {
-        if (selectedPortfolio != null && selectedPortfolio.Equals(portfolio))
+        if (pool == null) return;
+        
+        // TODO: Implement desired action:
+        // - Navigate to pool details page
+        // - Open pool in DEX explorer
+        // - Show pool details dialog
+        // - etc.
+    }
+
+    private string SelectedRowStyleFunc(PoolInfo pool, int rowNumber)
+    {
+        if (selectedPool != null && selectedPool.PoolAddress == pool.PoolAddress)
         {
             return "background-color: #E3F2FD;";
         }
         return string.Empty;
     }
 
-private bool isRescanning = false;
-
-private async Task RescanAllPortfolios()
-{
-    if (isRescanning)
-        return;
-
-    isRescanning = true;
-    StateHasChanged();
-
-    try
+    private string TruncateAddress(string address)
     {
-        foreach (var portfolio in portfolios)
-        {
-            Console.WriteLine($"Rescanning portfolio: {portfolio.Name} (ID: {portfolio.Id})");
-
-            var key = $"wallets_{portfolio.Id}";
-            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", key);
-            
-            if (string.IsNullOrEmpty(walletsJson))
-            {
-                Console.WriteLine($"No wallets found for portfolio {portfolio.Name}");
-                continue;
-            }
-
-            var wallets = JsonSerializer.Deserialize<List<WalletInfo>>(walletsJson);
-            if (wallets == null || wallets.Count == 0)
-            {
-                Console.WriteLine($"Empty wallet list for portfolio {portfolio.Name}");
-                continue;
-            }
-
-            decimal totalSol = 0, totalWSol = 0, totalUsdc = 0, totalAll = 0;
-
-            foreach (var wallet in wallets)
-            {
-                if (string.IsNullOrWhiteSpace(wallet.Address))
-                {
-                    Console.WriteLine($"Skipping empty wallet address");
-                    continue;
-                }
-
-                try
-                {
-                    Console.WriteLine($"Fetching balances for: {wallet.Address}");
-                    
-                    // ИСПОЛЬЗУЕМ BalanceService - ТОТ ЖЕ ЧТО И В WalletConfigDialog!
-                    var balances = await BalanceService.GetBalancesAsync(wallet.Address);
-                    
-                    Console.WriteLine($"Received balances: Sol={balances.Sol}, wSOL={balances.WSol}, USDC={balances.Usdc}, Total={balances.TotalUsd}");
-
-                    // Обновляем данные кошелька
-                    wallet.Sol = balances.Sol.ToString("G");
-                    wallet.WSol = balances.WSol.ToString("G");
-                    wallet.Usdc = balances.Usdc.ToString("G");
-                    wallet.All = balances.TotalUsd.ToString("F2");
-
-                    // Добавляем к итогам портфеля
-                    totalSol += balances.Sol;
-                    totalWSol += balances.WSol;
-                    totalUsdc += balances.Usdc;
-                    totalAll += balances.TotalUsd;
-
-                    Console.WriteLine($"Updated wallet totals: Sol={totalSol}, wSOL={totalWSol}, USDC={totalUsdc}, All={totalAll}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error rescanning wallet {wallet.Address}: {ex.Message}");
-                }
-            }
-
-            // Сохраняем обновленные кошельки
-            var updatedWalletsJson = JsonSerializer.Serialize(wallets);
-            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, updatedWalletsJson);
-            Console.WriteLine($"Saved updated wallets for portfolio {portfolio.Name}");
-
-            // Обновляем суммы в портфеле
-            portfolio.Sol = totalSol.ToString("F2");
-            portfolio.WSol = totalWSol.ToString("F2");
-            portfolio.Usdc = totalUsdc.ToString("F2");
-            portfolio.All = totalAll.ToString("F2");
-
-            Console.WriteLine($"Portfolio {portfolio.Name} totals: Sol={totalSol}, wSOL={totalWSol}, USDC={totalUsdc}, All={totalAll}");
-        }
-
-        await SavePortfoliosToSession();
-        Console.WriteLine("All portfolios rescanned and saved");
+        if (string.IsNullOrEmpty(address) || address.Length <= 12)
+            return address;
         
-        StateHasChanged();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error in RescanAllPortfolios: {ex.Message}");
-    }
-    finally
-    {
-        isRescanning = false;
-        StateHasChanged();
-    }
-}
-
-
-// Вспомогательные классы
-private class WalletInfo
-{
-    public int Number { get; set; }
-    public string Address { get; set; } = string.Empty;
-    public string Sol { get; set; } = string.Empty;
-    public string WSol { get; set; } = string.Empty;
-    public string Usdc { get; set; } = string.Empty;
-    public string All { get; set; } = string.Empty;
-}
-
-
-    private async Task OpenConfigDialog()
-    {
-        if (selectedPortfolio == null)
-            return;
-
-
-        var parameters = new DialogParameters
-        {
-            { "PortfolioId", selectedPortfolio.Id }
-        };
-
-
-        var options = new DialogOptions 
-        { 
-            MaxWidth = MaxWidth.Large,
-            FullWidth = true,
-            CloseButton = true,
-            CloseOnEscapeKey = false,
-            DisableBackdropClick = true
-        };
-
-
-        var dialogReference = DialogService.Show<WalletConfigDialog>("", parameters, options);
-        var result = await dialogReference.Result;
-
-
-        // После закрытия диалога получаем данные через componentInstance
-        var dialogInstance = (WalletConfigDialog)dialogReference.Dialog;
-        var summary = dialogInstance.GetSummary();
-        
-        // Обновляем портфолио
-        selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
-        selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
-        selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
-        selectedPortfolio.All = summary.TotalAll.ToString("F2");
-        
-        StateHasChanged();
-        await SavePortfoliosToSession();
-    }
-
-    // Методы для подсчета итоговых сумм по всем портфелям
-    private decimal GetTotalPortfolioSol()
-    {
-        return portfolios.Sum(p => decimal.TryParse(p.Sol, out var val) ? val : 0);
-    }
-
-    private decimal GetTotalPortfolioWSol()
-    {
-        return portfolios.Sum(p => decimal.TryParse(p.WSol, out var val) ? val : 0);
-    }
-
-    private decimal GetTotalPortfolioUsdc()
-    {
-        return portfolios.Sum(p => decimal.TryParse(p.Usdc, out var val) ? val : 0);
-    }
-
-    private decimal GetTotalPortfolioAll()
-    {
-        return portfolios.Sum(p => decimal.TryParse(p.All, out var val) ? val : 0);
-    }
-
-
-    private class Portfolio
-    {
-        public Guid Id { get; set; }
-        public int Number { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Sol { get; set; } = string.Empty;
-        public string WSol { get; set; } = string.Empty;
-        public string Usdc { get; set; } = string.Empty;
-        public string All { get; set; } = string.Empty;
+        return $"{address[..6]}...{address[^4..]}";
     }
 }

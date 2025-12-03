@@ -1,14 +1,24 @@
+@namespace DexResearchArbitrage.Components
 @using MudBlazor
 
 <MudDialog>
     <DialogContent>
-        <MudPaper Class="pa-8" Style="min-height:200px; min-width:400px; display:flex; align-items:center; justify-content:center;">
+        <MudPaper Class="pa-8" Style="min-height:150px; min-width:400px; display:flex; align-items:center; justify-content:center;">
             <MudText Typo="Typo.h5" Color="Color.Error" Align="Align.Center">@Message</MudText>
         </MudPaper>
     </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Close">OK</MudButton>
+    </DialogActions>
 </MudDialog>
 
 @code {
+    [CascadingParameter] 
+    private MudDialogInstance MudDialog { get; set; } = default!;
+    
     [Parameter]
-    public string Message { get; set; } = "Invalid Solana address";
+    public string Message { get; set; } = "Invalid token address";
+
+    private void Close() => MudDialog.Close();
 }
+
