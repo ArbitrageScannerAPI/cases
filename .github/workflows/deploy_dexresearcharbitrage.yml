@@ -1,0 +1,35 @@
+name: Deploy DexResearchArbitrage to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore packages
+        run: dotnet restore DexResearchArbitrage/DexResearcArbitrage.csproj
+
+      - name: Publish Blazor WebAssembly app
+        run: |
+          dotnet publish DexResearchArbitrage/DexResearcArbitrage.csproj -c Release -o ./out_dex
+
+      - name: Deploy to GitHub Pages (publish to gh-pages/DexResearchArbitrage)
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out_dex/wwwroot
+          publish_branch: gh-pages
+          destination_dir: DexResearchArbitrage
+          keep_history: true
