@@ -31,4 +31,4 @@ jobs:
           publish_dir: ./out/wwwroot
           publish_branch: gh-pages
           destination_dir: PortfolioManagement
-          keep_history: true
+         
