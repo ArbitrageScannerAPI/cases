@@ -1,29 +1,23 @@
 @namespace DexResearchArbitrage
-@using System.Net.Http.Json
 @using MudBlazor
 @using DexResearchArbitrage.Shared
 
-<MudThemeProvider>
-    <MudPopoverProvider>
-        <MudDialogProvider>
-            <MudSnackbarProvider>
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-                <Router AppAssembly="@typeof(Program).Assembly">
-                    <Found Context="routeData">
-                        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-                        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-                    </Found>
-                    <NotFound>
-                        <PageTitle>Not found</PageTitle>
-                        <LayoutView Layout="@typeof(MainLayout)">
-                            <MudText Typo="Typo.h5" Color="Color.Error">
-                                Page not found
-                            </MudText>
-                        </LayoutView>
-                    </NotFound>
-                </Router>
-
-            </MudSnackbarProvider>
-        </MudDialogProvider>
-    </MudPopoverProvider>
-</MudThemeProvider>
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <MudText Typo="Typo.h5" Color="Color.Error">
+                Page not found
+            </MudText>
+        </LayoutView>
+    </NotFound>
+</Router>
