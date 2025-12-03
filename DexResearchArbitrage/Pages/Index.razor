@@ -1,0 +1,456 @@
+@page "/"
+@inject HttpClient Http
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@inject SolanaBalanceService BalanceService
+@using System.Net.Http.Json
+@using System.Text.Json
+@using Microsoft.JSInterop
+<!--@using MudBlazor-->
+
+
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.h5">Portfolios</MudText>
+    <MudDivider Class="my-2" />
+    
+    <div class="d-flex gap-2 mb-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio" Disabled="@(portfolios.Count >= 5)">Add new</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanAllPortfolios">Rescan</MudButton>
+    </div>
+
+
+    <MudTable 
+        Items="@portfolios" 
+        T="Portfolio" 
+        Hover="true"
+        Bordered="true"
+        Breakpoint="Breakpoint.Sm"
+        FixedHeader="true"
+        Height="calc(100vh - 250px)"
+        @bind-SelectedItem="selectedPortfolio"
+        RowStyleFunc="@SelectedRowStyleFunc">
+        <HeaderContent>
+            <MudTh Style="width: 60px;">№</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Sol</MudTh>
+            <MudTh>wSOL</MudTh>
+            <MudTh>USDC</MudTh>
+            <MudTh>All (usd) </MudTh>
+        </HeaderContent>
+        <RowTemplate>
+    <MudTd DataLabel="№">@context.Number</MudTd>
+    <MudTd DataLabel="Name">
+        <MudTextField @bind-Value="context.Name" 
+                      Margin="Margin.Dense" 
+                      Variant="Variant.Text"
+                      MaxLength="30"
+                      Immediate="false"
+                      OnBlur="SavePortfoliosToSession"/>
+    </MudTd>
+    <MudTd DataLabel="Sol">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.Sol
+        }
+    </MudTd>
+    <MudTd DataLabel="wSOL">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.WSol
+        }
+    </MudTd>
+    <MudTd DataLabel="USDC">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.Usdc
+        }
+    </MudTd>
+    <MudTd DataLabel="All">
+        @if (isRescanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            @context.All
+        }
+    </MudTd>
+</RowTemplate>
+
+        <FooterContent>
+            <MudTd Style="font-weight: bold;">Total:</MudTd>
+            <MudTd></MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioSol().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioWSol().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioUsdc().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioAll().ToString("F2")</MudTd>
+        </FooterContent>
+    </MudTable>
+</MudPaper>
+
+
+@code {
+    private List<Portfolio> portfolios = new List<Portfolio>();
+    private Portfolio? selectedPortfolio;
+    private bool isInitialized = false;
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !isInitialized)
+        {
+            await LoadPortfoliosFromSession();
+            isInitialized = true;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task LoadPortfoliosFromSession()
+{
+    try
+    {
+        var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
+        
+        if (!string.IsNullOrEmpty(json))
+        {
+            var loadedPortfolios = JsonSerializer.Deserialize<List<Portfolio>>(json);
+            if (loadedPortfolios != null && loadedPortfolios.Count > 0)
+            {
+                portfolios = loadedPortfolios;
+                return;
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error loading portfolios: {ex.Message}");
+    }
+
+    // Create initial data 
+    await CreateInitialData();
+}
+
+private async Task CreateInitialData()
+{
+    Console.WriteLine("Creating initial data...");
+
+    // Создаем портфели
+    var meteoraId = Guid.NewGuid();
+    var orcaId = Guid.NewGuid();
+    var raydiumId = Guid.NewGuid();
+
+    portfolios = new List<Portfolio>
+    {
+        new Portfolio { Number = 1, Id = meteoraId, Name = "Meteora" },
+        new Portfolio { Number = 2, Id = orcaId, Name = "Orca" },
+        new Portfolio { Number = 3, Id = raydiumId, Name = "Raydium" }
+    };
+
+    // Create wallets for Meteora
+    var meteoraWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "9DiruRpjnAnzhn6ts5HGLouHtJrT1JGsPbXNYCrFz2ad" },
+        new WalletInfo { Number = 2, Address = "9d9mb8kooFfaD3SctgZtkxQypkshx6ezhbKio89ixyy2" },
+        new WalletInfo { Number = 3, Address = "DQ9weJhfiU4iL5LUoeshDrm5KxDHCMiSbnnKJz7buMcf" }
+    };
+
+    // Create wallets for Orca
+    var orcaWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE" },
+        new WalletInfo { Number = 2, Address = "9tXiuRRw7kbejLhZXtxDxYs2REe43uH2e7k1kocgdM9B" },
+        new WalletInfo { Number = 3, Address = "3wijQvPKm6jHQrAkfPpok5o8WjCWPm1DGG17NmeW8q1w" }
+    };
+
+    // Create wallets for Raydium
+    var raydiumWallets = new List<WalletInfo>
+    {
+        new WalletInfo { Number = 1, Address = "AS5MV3ear4NZPMWXbCsEz3AdbCaXEnq4ChdaWsvLgkcM" },
+        new WalletInfo { Number = 2, Address = "14H4cmzyPkiysPFTJvzngwTpa4GmKiqRSSpo9wT2Bhxf" },
+        new WalletInfo { Number = 3, Address = "5EgCcjkuE42YyTZY4QG8qTioUwNh6agTvJuNRyEqcqV1" }
+    };
+
+    // Save wallets in sessionStorage
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{meteoraId}", 
+        JsonSerializer.Serialize(meteoraWallets));
+
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{orcaId}", 
+        JsonSerializer.Serialize(orcaWallets));
+
+    await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", 
+        $"wallets_{raydiumId}", 
+        JsonSerializer.Serialize(raydiumWallets));
+
+    await SavePortfoliosToSession();
+
+    Console.WriteLine("Initial data created, starting rescan...");
+
+    // automate run Rescan
+    await RescanAllPortfolios();
+}
+
+
+
+    private async Task SavePortfoliosToSession()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(portfolios);
+            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "portfolios", json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving portfolios: {ex.Message}");
+        }
+    }
+
+
+    private async Task AddNewPortfolio()
+    {
+        var newPortfolio = new Portfolio 
+        { 
+            Number = portfolios.Count + 1,
+            Id = Guid.NewGuid()
+        };
+        portfolios.Add(newPortfolio);
+        await SavePortfoliosToSession();
+    }
+
+
+    private async Task DeleteSelectedPortfolio()
+    {
+        if (selectedPortfolio != null)
+        {
+            // Удаляем также кошельки этого портфеля из sessionStorage
+            await JSRuntime.InvokeVoidAsync("sessionStorage.removeItem", $"wallets_{selectedPortfolio.Id}");
+            
+            portfolios.Remove(selectedPortfolio);
+            RenumberPortfolios();
+            selectedPortfolio = null;
+            await SavePortfoliosToSession();
+        }
+    }
+
+
+    private void RenumberPortfolios()
+    {
+        for (int i = 0; i < portfolios.Count; i++)
+        {
+            portfolios[i].Number = i + 1;
+        }
+    }
+
+
+    private string SelectedRowStyleFunc(Portfolio portfolio, int rowNumber)
+    {
+        if (selectedPortfolio != null && selectedPortfolio.Equals(portfolio))
+        {
+            return "background-color: #E3F2FD;";
+        }
+        return string.Empty;
+    }
+
+private bool isRescanning = false;
+
+private async Task RescanAllPortfolios()
+{
+    if (isRescanning)
+        return;
+
+    isRescanning = true;
+    StateHasChanged();
+
+    try
+    {
+        foreach (var portfolio in portfolios)
+        {
+            Console.WriteLine($"Rescanning portfolio: {portfolio.Name} (ID: {portfolio.Id})");
+
+            var key = $"wallets_{portfolio.Id}";
+            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", key);
+            
+            if (string.IsNullOrEmpty(walletsJson))
+            {
+                Console.WriteLine($"No wallets found for portfolio {portfolio.Name}");
+                continue;
+            }
+
+            var wallets = JsonSerializer.Deserialize<List<WalletInfo>>(walletsJson);
+            if (wallets == null || wallets.Count == 0)
+            {
+                Console.WriteLine($"Empty wallet list for portfolio {portfolio.Name}");
+                continue;
+            }
+
+            decimal totalSol = 0, totalWSol = 0, totalUsdc = 0, totalAll = 0;
+
+            foreach (var wallet in wallets)
+            {
+                if (string.IsNullOrWhiteSpace(wallet.Address))
+                {
+                    Console.WriteLine($"Skipping empty wallet address");
+                    continue;
+                }
+
+                try
+                {
+                    Console.WriteLine($"Fetching balances for: {wallet.Address}");
+                    
+                    // ИСПОЛЬЗУЕМ BalanceService - ТОТ ЖЕ ЧТО И В WalletConfigDialog!
+                    var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+                    
+                    Console.WriteLine($"Received balances: Sol={balances.Sol}, wSOL={balances.WSol}, USDC={balances.Usdc}, Total={balances.TotalUsd}");
+
+                    // Обновляем данные кошелька
+                    wallet.Sol = balances.Sol.ToString("G");
+                    wallet.WSol = balances.WSol.ToString("G");
+                    wallet.Usdc = balances.Usdc.ToString("G");
+                    wallet.All = balances.TotalUsd.ToString("F2");
+
+                    // Добавляем к итогам портфеля
+                    totalSol += balances.Sol;
+                    totalWSol += balances.WSol;
+                    totalUsdc += balances.Usdc;
+                    totalAll += balances.TotalUsd;
+
+                    Console.WriteLine($"Updated wallet totals: Sol={totalSol}, wSOL={totalWSol}, USDC={totalUsdc}, All={totalAll}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error rescanning wallet {wallet.Address}: {ex.Message}");
+                }
+            }
+
+            // Сохраняем обновленные кошельки
+            var updatedWalletsJson = JsonSerializer.Serialize(wallets);
+            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, updatedWalletsJson);
+            Console.WriteLine($"Saved updated wallets for portfolio {portfolio.Name}");
+
+            // Обновляем суммы в портфеле
+            portfolio.Sol = totalSol.ToString("F2");
+            portfolio.WSol = totalWSol.ToString("F2");
+            portfolio.Usdc = totalUsdc.ToString("F2");
+            portfolio.All = totalAll.ToString("F2");
+
+            Console.WriteLine($"Portfolio {portfolio.Name} totals: Sol={totalSol}, wSOL={totalWSol}, USDC={totalUsdc}, All={totalAll}");
+        }
+
+        await SavePortfoliosToSession();
+        Console.WriteLine("All portfolios rescanned and saved");
+        
+        StateHasChanged();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in RescanAllPortfolios: {ex.Message}");
+    }
+    finally
+    {
+        isRescanning = false;
+        StateHasChanged();
+    }
+}
+
+
+// Вспомогательные классы
+private class WalletInfo
+{
+    public int Number { get; set; }
+    public string Address { get; set; } = string.Empty;
+    public string Sol { get; set; } = string.Empty;
+    public string WSol { get; set; } = string.Empty;
+    public string Usdc { get; set; } = string.Empty;
+    public string All { get; set; } = string.Empty;
+}
+
+
+    private async Task OpenConfigDialog()
+    {
+        if (selectedPortfolio == null)
+            return;
+
+
+        var parameters = new DialogParameters
+        {
+            { "PortfolioId", selectedPortfolio.Id }
+        };
+
+
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true,
+            CloseOnEscapeKey = false,
+            DisableBackdropClick = true
+        };
+
+
+        var dialogReference = DialogService.Show<WalletConfigDialog>("", parameters, options);
+        var result = await dialogReference.Result;
+
+
+        // После закрытия диалога получаем данные через componentInstance
+        var dialogInstance = (WalletConfigDialog)dialogReference.Dialog;
+        var summary = dialogInstance.GetSummary();
+        
+        // Обновляем портфолио
+        selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
+        selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
+        selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
+        selectedPortfolio.All = summary.TotalAll.ToString("F2");
+        
+        StateHasChanged();
+        await SavePortfoliosToSession();
+    }
+
+    // Методы для подсчета итоговых сумм по всем портфелям
+    private decimal GetTotalPortfolioSol()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.Sol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioWSol()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.WSol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioUsdc()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.Usdc, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioAll()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.All, out var val) ? val : 0);
+    }
+
+
+    private class Portfolio
+    {
+        public Guid Id { get; set; }
+        public int Number { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Sol { get; set; } = string.Empty;
+        public string WSol { get; set; } = string.Empty;
+        public string Usdc { get; set; } = string.Empty;
+        public string All { get; set; } = string.Empty;
+    }
+}

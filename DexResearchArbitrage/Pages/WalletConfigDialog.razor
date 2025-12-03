@@ -1,0 +1,422 @@
+@using Microsoft.JSInterop
+@using MudBlazor
+@using System.Linq
+@using System.Text.Json
+@inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
+@inject SolanaAddressValidator AddressValidator
+@inject SolanaBalanceService BalanceService
+
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Completing the portfolio with wallets SOLANA</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
+           <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
+          @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
+    <HeaderContent>
+        <MudTh Style="width: 60px;">№</MudTh>
+        <MudTh>Address</MudTh>
+        <MudTh Style="width: 80px;">Sol</MudTh>
+        <MudTh Style="width: 80px;">wSOL</MudTh>
+        <MudTh Style="width: 80px;">USDC</MudTh>
+        <MudTh Style="width: 80px;">All (usd)</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context?.Number</MudTd>
+        <MudTd DataLabel="Address">
+            @if (context != null)
+            {
+                <MudTextField @bind-Value="@context.Address" 
+                              MaxLength="60" 
+                              OnKeyUp="@(async (e) => await OnAddressKeyUp(e, context))"
+                              OnBlur="@(async () => await OnAddressBlur(context))"
+                              Immediate="false" />
+            }
+        </MudTd>
+        <MudTd DataLabel="Sol">
+    @if (context != null && !string.IsNullOrEmpty(context.Address) && loadingWallets.ContainsKey(context.Address) && loadingWallets[context.Address])
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+    }
+    else
+    {
+        @context?.Sol
+    }
+</MudTd>
+<MudTd DataLabel="wSOL">
+    @if (context != null && !string.IsNullOrEmpty(context.Address) && loadingWallets.ContainsKey(context.Address) && loadingWallets[context.Address])
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+    }
+    else
+    {
+        @context?.WSol
+    }
+</MudTd>
+<MudTd DataLabel="USDC">
+    @if (context != null && !string.IsNullOrEmpty(context.Address) && loadingWallets.ContainsKey(context.Address) && loadingWallets[context.Address])
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+    }
+    else
+    {
+        @context?.Usdc
+    }
+</MudTd>
+<MudTd DataLabel="All (usd)">
+    @if (context != null && !string.IsNullOrEmpty(context.Address) && loadingWallets.ContainsKey(context.Address) && loadingWallets[context.Address])
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+    }
+    else
+    {
+        @context?.All
+    }
+</MudTd>
+    </RowTemplate>
+    <FooterContent>
+        <MudTd Style="font-weight: bold;">Total:</MudTd>
+        <MudTd></MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalWSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalUsdc().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalAll().ToString("F2")</MudTd>
+    </FooterContent>
+</MudTable>
+        </MudPaper>
+
+        <div class="d-flex gap-2 mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet" Disabled="@(wallets.Count >= 5)">Add</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanWallets">Rescan</MudButton>
+        </div>
+
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter]
+    public Guid PortfolioId { get; set; }
+
+    private List<Wallet> wallets = new List<Wallet>();
+    private Wallet? selectedWallet;
+    private Dictionary<string, bool> loadingWallets = new Dictionary<string, bool>();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWalletsFromStorage();
+    }
+
+    private async Task OnAddressKeyUp(KeyboardEventArgs e, Wallet wallet)
+    {
+        if (e.Key == "Enter")
+        {
+            Console.WriteLine($"Enter pressed for address: {wallet.Address}");
+            await ValidateAndSaveAddress(wallet);
+        }
+    }
+
+    private async Task OnAddressBlur(Wallet wallet)
+    {
+        Console.WriteLine($"Blur event for address: {wallet.Address}");
+        await ValidateAndSaveAddress(wallet);
+    }
+
+    private async Task ValidateAndSaveAddress(Wallet wallet)
+    {
+        if (string.IsNullOrWhiteSpace(wallet.Address))
+        {
+            Console.WriteLine("Address is empty, saving without validation");
+            await SaveWalletsToStorage();
+            return;
+        }
+
+        Console.WriteLine($"Validating address: {wallet.Address}");
+
+        // Single check for duplicates for ALL portfolios (including the current one)
+        if (await IsAddressDuplicate(wallet))
+        {
+            Console.WriteLine("Duplicate address found");
+            await ShowErrorModal("This wallet is already in the portfolio");
+            wallet.Address = string.Empty;
+            StateHasChanged();
+            return;
+        }
+
+        // Validation on API
+        var isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
+
+        if (isValid)
+        {
+            loadingWallets[wallet.Address] = true;
+            StateHasChanged();
+            
+            Console.WriteLine("Address is valid, fetching balances...");
+
+            var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+            
+            loadingWallets[wallet.Address] = false;
+
+            wallet.Sol = balances.Sol.ToString("G");
+            wallet.WSol = balances.WSol.ToString("G");
+            wallet.Usdc = balances.Usdc.ToString("G");
+            wallet.All = balances.TotalUsd.ToString("F2");
+
+            await SaveWalletsToStorage();
+            StateHasChanged();
+        }
+        else
+        {
+            Console.WriteLine("Address is invalid, showing modal...");
+            await ShowErrorModal("Invalid Solana address");
+            wallet.Address = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> IsAddressDuplicate(Wallet currentWallet)
+{
+    try
+    {
+        var address = currentWallet.Address;
+
+        // Checking in the current portfolio (excluding the wallet being checked)
+        if (wallets.Any(w => w != currentWallet && 
+                            !string.IsNullOrWhiteSpace(w.Address) && 
+                            w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine("Duplicate found in current portfolio");
+            return true;
+        }
+
+        // Check in other portfolios
+        var portfoliosJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
+        if (string.IsNullOrEmpty(portfoliosJson))
+            return false;
+
+        var portfolios = JsonSerializer.Deserialize<List<PortfolioInfo>>(portfoliosJson);
+        if (portfolios == null)
+            return false;
+
+        foreach (var portfolio in portfolios)
+        {
+            // Skip the current portfolio (already checked above)
+            if (portfolio.Id == PortfolioId)
+                continue;
+
+            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
+            if (string.IsNullOrEmpty(walletsJson))
+                continue;
+
+            var otherWallets = JsonSerializer.Deserialize<List<Wallet>>(walletsJson);
+            if (otherWallets != null && 
+                otherWallets.Any(w => !string.IsNullOrWhiteSpace(w.Address) && 
+                                     w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.WriteLine($"Duplicate found in portfolio {portfolio.Id}");
+                return true;
+            }
+        }
+
+        Console.WriteLine("No duplicates found");
+        return false;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error checking duplicate address: {ex.Message}");
+        return false;
+    }
+}
+
+    private async Task ShowErrorModal(string message)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Message", message }
+        };
+
+        var options = new DialogOptions
+        {
+            NoHeader = true,
+            CloseOnEscapeKey = false,
+            CloseButton = false
+        };
+
+        var dialog = DialogService.Show<InvalidAddressDialog>("", parameters, options);
+        
+        await Task.Delay(2000);
+        dialog.Close();
+    }
+
+    private async Task AddNewWallet()
+    {
+        var newWallet = new Wallet { Number = wallets.Count + 1 };
+        wallets.Add(newWallet);
+        await SaveWalletsToStorage();
+    }
+
+    private async Task DeleteWallet()
+    {
+        if (selectedWallet != null)
+        {
+            wallets.Remove(selectedWallet);
+            RenumberWallets();
+            selectedWallet = null;
+            await SaveWalletsToStorage();
+        }
+    }
+
+    private void RenumberWallets()
+    {
+        for (int i = 0; i < wallets.Count; i++)
+        {
+            wallets[i].Number = i + 1;
+        }
+    }
+
+  private bool isRescanning = false;
+
+private async Task RescanWallets()
+{
+    if (isRescanning)
+        return;
+
+    isRescanning = true;
+    StateHasChanged();
+
+    try
+    {
+        foreach (var wallet in wallets)
+        {
+            if (string.IsNullOrWhiteSpace(wallet.Address))
+                continue;
+
+            try
+            {
+                Console.WriteLine($"Rescanning wallet: {wallet.Address}");
+                
+                loadingWallets[wallet.Address] = true;
+                StateHasChanged();
+
+                var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+
+                wallet.Sol = balances.Sol.ToString("G");
+                wallet.WSol = balances.WSol.ToString("G");
+                wallet.Usdc = balances.Usdc.ToString("G");
+                wallet.All = balances.TotalUsd.ToString("F2");
+
+                loadingWallets[wallet.Address] = false;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error rescanning wallet {wallet.Address}: {ex.Message}");
+                loadingWallets[wallet.Address] = false;
+            }
+        }
+
+        await SaveWalletsToStorage();
+        StateHasChanged();
+    }
+    finally
+    {
+        isRescanning = false;
+        StateHasChanged();
+    }
+}
+
+    private async Task LoadWalletsFromStorage()
+    {
+        var key = $"wallets_{PortfolioId}";
+        var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", key);
+        
+        if (!string.IsNullOrEmpty(json))
+        {
+            wallets = JsonSerializer.Deserialize<List<Wallet>>(json) ?? new List<Wallet>();
+        }
+        else
+        {
+            wallets = new List<Wallet>
+            {
+                new Wallet { Number = 1 },
+                new Wallet { Number = 2 },
+                new Wallet { Number = 3 }
+            };
+        }
+    }
+
+    private async Task SaveWalletsToStorage()
+    {
+        var key = $"wallets_{PortfolioId}";
+        var json = JsonSerializer.Serialize(wallets);
+        await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, json);
+    }
+
+    private decimal GetTotalSol()
+    {
+        return wallets
+            .Where(w => !string.IsNullOrWhiteSpace(w.Sol))
+            .Sum(w => decimal.TryParse(w.Sol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalWSol()
+    {
+        return wallets
+            .Where(w => !string.IsNullOrWhiteSpace(w.WSol))
+            .Sum(w => decimal.TryParse(w.WSol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalUsdc()
+    {
+        return wallets
+            .Where(w => !string.IsNullOrWhiteSpace(w.Usdc))
+            .Sum(w => decimal.TryParse(w.Usdc, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalAll()
+    {
+        return wallets
+            .Where(w => !string.IsNullOrWhiteSpace(w.All))
+            .Sum(w => decimal.TryParse(w.All, out var val) ? val : 0);
+    }
+
+    public WalletSummary GetSummary()
+    {
+        return new WalletSummary
+        {
+            TotalSol = GetTotalSol(),
+            TotalWSol = GetTotalWSol(),
+            TotalUsdc = GetTotalUsdc(),
+            TotalAll = GetTotalAll()
+        };
+    }
+
+    private class PortfolioInfo
+    {
+        public Guid Id { get; set; }
+    }
+
+    public class WalletSummary
+    {
+        public decimal TotalSol { get; set; }
+        public decimal TotalWSol { get; set; }
+        public decimal TotalUsdc { get; set; }
+        public decimal TotalAll { get; set; }
+    }
+    
+    public class Wallet
+    {
+        public int Number { get; set; }
+        public string Address { get; set; } = string.Empty;
+        public string Sol { get; set; } = string.Empty;
+        public string WSol { get; set; } = string.Empty;
+        public string Usdc { get; set; } = string.Empty;
+        public string All { get; set; } = string.Empty;
+    }
+}
