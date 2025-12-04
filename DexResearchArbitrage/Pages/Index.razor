@@ -61,14 +61,6 @@
         </MudItem>
     </MudGrid>
     
-    <!-- Validated Token Info -->
-    @if (validatedToken != null && validatedToken.IsValid)
-    {
-        <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
-            Token validated: @validatedToken.TokenSymbol (@validatedToken.TokenAddress)
-        </MudAlert>
-    }
-    
     <!-- Filters Section (shown only when pools are loaded) -->
     @if (true) //(allPools.Count > 0)
     {
@@ -76,6 +68,14 @@
                      AvailableSecondTokens="@availableSecondTokens"
                      OnFiltersChanged="ApplyFilters" />
     }
+
+    <!-- Validated Token Info -->
+    @if (validatedToken != null && validatedToken.IsValid)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
+            Token validated: @validatedToken.TokenSymbol (@validatedToken.TokenAddress)
+        </MudAlert>
+    }      
     
     <!-- Pools Table -->
     @if (allPools.Count > 0)
