@@ -16,16 +16,24 @@
     <MudGrid Class="mb-4">
         <MudItem xs="12" md="4">
             <MudSelect T="Network" 
-                       Label="Select Network" 
-                       @bind-Value="selectedNetwork"
-                       Required="true"
-                       RequiredError="Please select a network"
-                       Variant="Variant.Outlined"
-                       AnchorOrigin="Origin.BottomCenter">
-                <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
-                <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
-                <MudSelectItem Value="Network.Ethereum">Ethereum</MudSelectItem>
-            </MudSelect>
+           Label="Select Network" 
+           @bind-Value="selectedNetwork"
+           Required="true"
+           RequiredError="Please select a network"
+           Variant="Variant.Outlined"
+           AnchorOrigin="Origin.BottomCenter">
+    <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
+    <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
+
+    @* Ethereum is temporarily disabled. 
+       To enable it again, remove Disabled=\"true\" and the Style or bind Disabled to a configuration flag. *@
+    <MudSelectItem Value="Network.Ethereum"
+                   Disabled="true"
+                   Style="color: gray;">
+        Ethereum
+    </MudSelectItem>
+</MudSelect>
+
         </MudItem>
         
         <MudItem xs="12" md="6">
