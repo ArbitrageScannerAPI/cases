@@ -5,12 +5,12 @@
 
 <MudPaper Class="pa-4 mb-4">
     <MudText Typo="Typo.h6" Class="mb-3">Filters</MudText>
-    
+
     <MudGrid>
         <!-- Second Token Filter -->
         <MudItem xs="12" md="6" lg="3">
-            <MudSelect T="string" 
-                       Label="Second Token" 
+            <MudSelect T="string"
+                       Label="Second Token"
                        MultiSelection="true"
                        @bind-SelectedValues="SelectedSecondTokens"
                        Placeholder="All tokens"
@@ -22,41 +22,41 @@
                 }
             </MudSelect>
         </MudItem>
-        
+
         <!-- TVL Filter -->
         <MudItem xs="12" md="6" lg="2">
-            <MudNumericField T="decimal" 
-                             Label="Min TVL (USD)" 
+            <MudNumericField T="decimal"
+                             Label="Min TVL (USD)"
                              @bind-Value="Filters.MinTvlUsd"
                              Min="0"
                              Format="N2"
                              Clearable="true"
                              Dense="true" />
         </MudItem>
-        
-        <!-- Swaps Date Filter -->
+
+        <!-- Swaps From Date -->
         <MudItem xs="12" md="6" lg="2">
-            <MudDatePicker Label="Swaps From Date" 
+            <MudDatePicker Label="Swaps From Date"
                            @bind-Date="Filters.SwapsFromDate"
                            Clearable="true"
                            MaxDate="DateTime.Today"
                            Dense="true" />
         </MudItem>
-        
-        <!-- Min Swaps Count Filter -->
+
+        <!-- Min Swaps -->
         <MudItem xs="12" md="6" lg="2">
-            <MudNumericField T="int" 
-                             Label="Min Swaps" 
+            <MudNumericField T="int"
+                             Label="Min Swaps"
                              @bind-Value="Filters.MinSwapCount"
                              Min="0"
                              Clearable="true"
                              Dense="true" />
         </MudItem>
-        
-        <!-- Price Diff Filter -->
+
+        <!-- Min Price Diff -->
         <MudItem xs="12" md="6" lg="2">
-            <MudNumericField T="decimal" 
-                             Label="Min Price Diff %" 
+            <MudNumericField T="decimal"
+                             Label="Min Price Diff %"
                              @bind-Value="Filters.MinPriceDiffPercent"
                              Min="0"
                              Max="100"
@@ -64,17 +64,17 @@
                              Clearable="true"
                              Dense="true" />
         </MudItem>
-        
-        <!-- Action Buttons -->
+
+        <!-- Buttons -->
         <MudItem xs="12" md="6" lg="1" Class="d-flex align-center gap-2">
-            <MudButton Variant="Variant.Filled" 
-                       Color="Color.Primary" 
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
                        Size="Size.Small"
                        OnClick="ApplyFilters">
                 Apply
             </MudButton>
-            <MudButton Variant="Variant.Outlined" 
-                       Color="Color.Secondary" 
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
                        Size="Size.Small"
                        OnClick="ResetFilters">
                 Reset
@@ -84,26 +84,17 @@
 </MudPaper>
 
 @code {
-    [Parameter]
-    public PoolFiltersModel Filters { get; set; } = new();
-    
-    [Parameter]
-    public List<string> AvailableSecondTokens { get; set; } = new();
-    
-    [Parameter]
-    public EventCallback OnFiltersChanged { get; set; }
-    
+    [Parameter] public PoolFiltersModel Filters { get; set; } = new();
+    [Parameter] public List<string> AvailableSecondTokens { get; set; } = new();
+    [Parameter] public EventCallback OnFiltersChanged { get; set; }
+
     private IEnumerable<string> SelectedSecondTokens
     {
         get => Filters.SecondTokenAddresses;
         set => Filters.SecondTokenAddresses = value.ToList();
     }
-    
-    private async Task ApplyFilters()
-    {
-        await OnFiltersChanged.InvokeAsync();
-    }
-    
+
+    private async Task ApplyFilters() => await OnFiltersChanged.InvokeAsync();
     private async Task ResetFilters()
     {
         Filters.Reset();
