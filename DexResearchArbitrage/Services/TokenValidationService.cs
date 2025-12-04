@@ -38,8 +38,10 @@ namespace DexResearchArbitrage.Services
         private readonly HttpClient _httpClient;
 
         // Production Vercel proxy URL (must stay in sync with the original project).
-        // The proxy calls ArbitrageScanner API:
-        //   https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/token/general_info
+        // The proxy calls ArbitrageScanner API and, depending on the "type" parameter,
+        // can use:
+        //   - /address/general_info  (type omitted or "address")
+        //   - /token/general_info    (type = "token")  <-- used by this service.
         private const string VercelApiUrl = "https://vercel-apip-roxima.vercel.app/api/validate";
 
         // TODO: Replace with a real Ethereum validation endpoint when it becomes available.
@@ -88,7 +90,10 @@ namespace DexResearchArbitrage.Services
         {
             try
             {
-                var url = $"{VercelApiUrl}?address={Uri.EscapeDataString(tokenAddress)}";
+                // IMPORTANT:
+                // We add type=token so the Vercel proxy calls the "token/general_info" endpoint
+                // instead of "address/general_info".
+                var url = $"{VercelApiUrl}?address={Uri.EscapeDataString(tokenAddress)}&type=token";
                 Console.WriteLine($"[Solana] Calling Vercel API: {url}");
 
                 var response = await _httpClient.GetAsync(url);
@@ -111,8 +116,8 @@ namespace DexResearchArbitrage.Services
                         // ignore parse error, we still have raw body
                     }
 
-                    var message = error?.Detail 
-                                  ?? error?.Error 
+                    var message = error?.Detail
+                                  ?? error?.Error
                                   ?? "Invalid Solana token address";
 
                     Console.WriteLine($"[Solana] Validation FAILED: {message}");
