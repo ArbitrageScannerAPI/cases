@@ -18,23 +18,26 @@
     <MudGrid Class="mb-4">
         <MudItem xs="12" md="4">
             <MudSelect T="Network"
-           Label="Select Network"
-           Value="selectedNetwork"
-           ValueChanged="OnNetworkChanged"
-           ValueExpression="() => selectedNetwork"
-           Required="true"
-           RequiredError="Please select a network"
-           Variant="Variant.Outlined"
-           AnchorOrigin="Origin.BottomCenter">
-    <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
-    <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
-    <MudSelectItem Value="Network.Ethereum"
-                   Disabled="true"
-                   Style="color: gray;">
-        Ethereum
-    </MudSelectItem>
-</MudSelect>
+                       Label="Select Network"
+                       Value="selectedNetwork"
+                       ValueChanged="OnNetworkChanged"
+                       ValueExpression="() => selectedNetwork"
+                       Required="true"
+                       RequiredError="Please select a network"
+                       Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
+                <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
 
+                @* Ethereum is temporarily disabled.
+                   To enable it again, remove Disabled="true" and the Style
+                   or bind Disabled to a configuration flag. *@
+                <MudSelectItem Value="Network.Ethereum"
+                               Disabled="true"
+                               Style="color: gray;">
+                    Ethereum
+                </MudSelectItem>
+            </MudSelect>
         </MudItem>
         
         <MudItem xs="12" md="6">
@@ -78,7 +81,7 @@
         </MudAlert>
     }
     
-    <!-- Filters Section (always visible when Solana selected; data will apply when pools loaded) -->
+    <!-- Filters Section -->
     @if (selectedNetwork == Network.Solana && availableSecondTokens.Count > 0)
     {
         <PoolFilters Filters="@filters" 
@@ -200,6 +203,20 @@
             { "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC" }
         };
 
+    protected override void OnInitialized()
+    {
+        SetDefaultFilters();
+    }
+
+    private void SetDefaultFilters()
+    {
+        // Default "from date" = 5 days ago (UTC date)
+        filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-5);
+
+        // Default minimum swaps count
+        filters.MinSwapCount = 5000;
+    }
+
     private void OnNetworkChanged(Network value)
     {
         selectedNetwork = value;
@@ -209,9 +226,11 @@
         validatedToken = null;
         allPools.Clear();
         filteredPools.Clear();
-        filters.Reset();
         hasValidationError = false;
         validationErrorMessage = string.Empty;
+
+        filters.Reset();
+        SetDefaultFilters();
 
         UpdateAvailableSecondTokens();
         StateHasChanged();
@@ -255,6 +274,7 @@
         allPools.Clear();
         filteredPools.Clear();
         filters.Reset();
+        SetDefaultFilters();
 
         // Step 1: Validate token
         isValidating = true;
@@ -298,8 +318,7 @@
         {
             allPools = await PoolsService.GetPoolsByTokenAsync(selectedNetwork, tokenAddress.Trim());
 
-            // Поскольку фильтр по второму токену основан только на предустановленных значениях,
-            // availableSecondTokens уже заполнен в UpdateAvailableSecondTokens().
+            // availableSecondTokens already prepared by UpdateAvailableSecondTokens (for Solana).
             ApplyFilters();
         }
         catch (Exception ex)
