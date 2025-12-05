@@ -193,6 +193,16 @@
     private bool hasValidationError = false;
     private string validationErrorMessage = string.Empty;
 
+    // Predefined Solana secondary tokens for filters
+    private readonly Dictionary<string, string> _predefinedSolanaSecondTokens =
+    new()
+    {
+        { "So11111111111111111111111111111111111111112", "wSOL" },
+        { "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "USDT" },
+        { "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC" }
+    };
+
+
     private async Task OnTokenAddressBlur()
     {
         // Optional: Auto-validate on blur
@@ -257,13 +267,43 @@
             allPools = await PoolsService.GetPoolsByTokenAsync(selectedNetwork, tokenAddress.Trim());
             
             // Extract unique second tokens for filter dropdown
-            availableSecondTokens = allPools
-                .Select(p => !string.IsNullOrEmpty(p.SecondTokenSymbol) 
-                    ? $"{p.SecondTokenSymbol} ({TruncateAddress(p.SecondTokenAddress)})" 
-                    : p.SecondTokenAddress)
-                .Distinct()
-                .OrderBy(x => x)
-                .ToList();
+            // Build initial list from predefined Solana tokens if Solana is selected.
+var tokenDisplaySet = new HashSet<string>();
+
+if (selectedNetwork == Network.Solana)
+{
+    foreach (var kvp in _predefinedSolanaSecondTokens)
+    {
+        var addr = kvp.Key;
+        var symbol = kvp.Value;
+        var display = $"{symbol} ({TruncateAddress(addr)})";
+        tokenDisplaySet.Add(display);
+    }
+}
+
+// Add dynamic tokens from pools (for any network).
+foreach (var p in allPools)
+{
+    var addr = p.SecondTokenAddress;
+    var symbol = p.SecondTokenSymbol;
+
+    // If we know a better symbol for this address, use it.
+    if (selectedNetwork == Network.Solana && _predefinedSolanaSecondTokens.TryGetValue(addr, out var knownSymbol))
+    {
+        symbol = knownSymbol;
+    }
+
+    var display = !string.IsNullOrEmpty(symbol)
+        ? $"{symbol} ({TruncateAddress(addr)})"
+        : addr;
+
+    tokenDisplaySet.Add(display);
+}
+
+availableSecondTokens = tokenDisplaySet
+    .OrderBy(x => x)
+    .ToList();
+
             
             // Apply initial (empty) filters
             ApplyFilters();
@@ -293,13 +333,26 @@
         var result = pools.AsEnumerable();
 
         // Filter by second token addresses
-        if (filterModel.SecondTokenAddresses.Count > 0)
+if (filterModel.SecondTokenAddresses.Count > 0)
+{
+    // Selected values come as display strings like "USDC (EPjF...)".
+    // Extract plain addresses for comparison.
+    var selectedAddresses = filterModel.SecondTokenAddresses
+        .Select(v =>
         {
-            result = result.Where(p => 
-                filterModel.SecondTokenAddresses.Any(f => 
-                    f.Contains(p.SecondTokenAddress) || 
-                    f.Contains(p.SecondTokenSymbol ?? "")));
-        }
+            var start = v.IndexOf('(');
+            var end = v.IndexOf(')');
+            if (start >= 0 && end > start)
+                return v.Substring(start + 1, end - start - 1); // truncated address inside ()
+            return v;
+        })
+        .ToList();
+
+    result = result.Where(p =>
+        selectedAddresses.Any(sel =>
+            p.SecondTokenAddress.Contains(sel, StringComparison.OrdinalIgnoreCase)));
+}
+
 
         // Filter by minimum TVL
         if (filterModel.MinTvlUsd > 0)

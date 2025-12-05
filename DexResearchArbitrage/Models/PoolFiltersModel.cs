@@ -6,7 +6,7 @@ namespace DexResearchArbitrage.Models
         /// List of second token addresses to filter by (empty = no filter)
         /// </summary>
         public List<string> SecondTokenAddresses { get; set; } = new();
-        
+
         /// <summary>
         /// Minimum TVL in USD (0 = no filter)
         /// </summary>
