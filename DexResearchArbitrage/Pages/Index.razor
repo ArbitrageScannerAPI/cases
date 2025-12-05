@@ -1,15 +1,14 @@
 @page "/"
+@using DexResearchArbitrage.Models
+@using DexResearchArbitrage.Services
+@using DexResearchArbitrage.Components
+@using System.Text.Json
+
 @inject HttpClient Http
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
 @inject ITokenValidationService TokenValidationService
 @inject IPoolsService PoolsService
-
-@using MudBlazor
-@using DexResearchArbitrage.Models
-@using DexResearchArbitrage.Services
-@using System.Text.Json
-
 
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.h5">DEX Pool Explorer</MudText>
@@ -18,18 +17,17 @@
     <!-- Network and Token Input Section -->
     <MudGrid Class="mb-4">
         <MudItem xs="12" md="4">
-            <MudSelect T="Network" 
-           Label="Select Network" 
-           @bind-Value="selectedNetwork"
+            <MudSelect T="Network"
+           Label="Select Network"
+           Value="selectedNetwork"
+           ValueChanged="OnNetworkChanged"
+           ValueExpression="() => selectedNetwork"
            Required="true"
            RequiredError="Please select a network"
            Variant="Variant.Outlined"
            AnchorOrigin="Origin.BottomCenter">
     <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
     <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
-
-    @* Ethereum is temporarily disabled. 
-       To enable it again, remove Disabled=\"true\" and the Style or bind Disabled to a configuration flag. *@
     <MudSelectItem Value="Network.Ethereum"
                    Disabled="true"
                    Style="color: gray;">
@@ -72,21 +70,21 @@
         </MudItem>
     </MudGrid>
     
-    <!-- Filters Section (shown only when pools are loaded) -->
-    @if (true) //(allPools.Count > 0)
-    {
-        <PoolFilters Filters="@filters" 
-                     AvailableSecondTokens="@availableSecondTokens"
-                     OnFiltersChanged="ApplyFilters" />
-    }
-
     <!-- Validated Token Info -->
     @if (validatedToken != null && validatedToken.IsValid)
     {
         <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
             Token validated: @validatedToken.TokenSymbol (@validatedToken.TokenAddress)
         </MudAlert>
-    }      
+    }
+    
+    <!-- Filters Section (always visible when Solana selected; data will apply when pools loaded) -->
+    @if (selectedNetwork == Network.Solana && availableSecondTokens.Count > 0)
+    {
+        <PoolFilters Filters="@filters" 
+                     AvailableSecondTokens="@availableSecondTokens"
+                     OnFiltersChanged="ApplyFilters" />
+    }
     
     <!-- Pools Table -->
     @if (allPools.Count > 0)
@@ -177,16 +175,16 @@
     private Network selectedNetwork = Network.None;
     private string tokenAddress = string.Empty;
     private TokenValidationResult? validatedToken;
-    
+
     // Pools data
     private List<PoolInfo> allPools = new();
     private List<PoolInfo> filteredPools = new();
     private PoolInfo? selectedPool;
-    
+
     // Filters
     private PoolFiltersModel filters = new();
     private List<string> availableSecondTokens = new();
-    
+
     // UI state
     private bool isValidating = false;
     private bool isLoadingPools = false;
@@ -195,18 +193,55 @@
 
     // Predefined Solana secondary tokens for filters
     private readonly Dictionary<string, string> _predefinedSolanaSecondTokens =
-    new()
-    {
-        { "So11111111111111111111111111111111111111112", "wSOL" },
-        { "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "USDT" },
-        { "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC" }
-    };
+        new()
+        {
+            { "So11111111111111111111111111111111111111112", "wSOL" },
+            { "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "USDT" },
+            { "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC" }
+        };
 
-
-    private async Task OnTokenAddressBlur()
+    private void OnNetworkChanged(Network value)
     {
-        // Optional: Auto-validate on blur
-        // await ValidateAndLoadPools();
+        selectedNetwork = value;
+
+        // Reset state when network changes
+        tokenAddress = string.Empty;
+        validatedToken = null;
+        allPools.Clear();
+        filteredPools.Clear();
+        filters.Reset();
+        hasValidationError = false;
+        validationErrorMessage = string.Empty;
+
+        UpdateAvailableSecondTokens();
+        StateHasChanged();
+    }
+
+    private void UpdateAvailableSecondTokens()
+    {
+        availableSecondTokens.Clear();
+
+        if (selectedNetwork == Network.Solana)
+        {
+            foreach (var kvp in _predefinedSolanaSecondTokens)
+            {
+                var addr = kvp.Key;
+                var symbol = kvp.Value;
+                var display = $"{symbol} ({TruncateAddress(addr)})";
+                availableSecondTokens.Add(display);
+            }
+        }
+        else
+        {
+            // For other networks we currently do not define predefined tokens.
+            availableSecondTokens.Clear();
+        }
+    }
+
+    private Task OnTokenAddressBlur()
+    {
+        // Optional: auto-validate on blur in the future.
+        return Task.CompletedTask;
     }
 
     private async Task ValidateAndLoadPools()
@@ -220,7 +255,6 @@
         allPools.Clear();
         filteredPools.Clear();
         filters.Reset();
-        availableSecondTokens.Clear();
 
         // Step 1: Validate token
         isValidating = true;
@@ -232,15 +266,13 @@
 
             if (!validatedToken.IsValid)
             {
-                // Show error dialog similar to original project
                 await ShowInvalidTokenDialog(validatedToken.ErrorMessage ?? "Invalid token address");
-                
-                // Clear input and set error state
+
                 tokenAddress = string.Empty;
                 hasValidationError = true;
                 validationErrorMessage = validatedToken.ErrorMessage ?? "Invalid token address";
                 validatedToken = null;
-                
+
                 isValidating = false;
                 StateHasChanged();
                 return;
@@ -257,7 +289,7 @@
         }
 
         isValidating = false;
-        
+
         // Step 2: Load pools
         isLoadingPools = true;
         StateHasChanged();
@@ -265,47 +297,9 @@
         try
         {
             allPools = await PoolsService.GetPoolsByTokenAsync(selectedNetwork, tokenAddress.Trim());
-            
-            // Extract unique second tokens for filter dropdown
-            // Build initial list from predefined Solana tokens if Solana is selected.
-var tokenDisplaySet = new HashSet<string>();
 
-if (selectedNetwork == Network.Solana)
-{
-    foreach (var kvp in _predefinedSolanaSecondTokens)
-    {
-        var addr = kvp.Key;
-        var symbol = kvp.Value;
-        var display = $"{symbol} ({TruncateAddress(addr)})";
-        tokenDisplaySet.Add(display);
-    }
-}
-
-// Add dynamic tokens from pools (for any network).
-foreach (var p in allPools)
-{
-    var addr = p.SecondTokenAddress;
-    var symbol = p.SecondTokenSymbol;
-
-    // If we know a better symbol for this address, use it.
-    if (selectedNetwork == Network.Solana && _predefinedSolanaSecondTokens.TryGetValue(addr, out var knownSymbol))
-    {
-        symbol = knownSymbol;
-    }
-
-    var display = !string.IsNullOrEmpty(symbol)
-        ? $"{symbol} ({TruncateAddress(addr)})"
-        : addr;
-
-    tokenDisplaySet.Add(display);
-}
-
-availableSecondTokens = tokenDisplaySet
-    .OrderBy(x => x)
-    .ToList();
-
-            
-            // Apply initial (empty) filters
+            // Поскольку фильтр по второму токену основан только на предустановленных значениях,
+            // availableSecondTokens уже заполнен в UpdateAvailableSecondTokens().
             ApplyFilters();
         }
         catch (Exception ex)
@@ -326,33 +320,36 @@ availableSecondTokens = tokenDisplaySet
     }
 
     /// <summary>
-    /// Client-side filtering logic (separated for testability)
+    /// Client-side filtering logic (separated for testability).
     /// </summary>
     private List<PoolInfo> FilterPools(List<PoolInfo> pools, PoolFiltersModel filterModel)
     {
         var result = pools.AsEnumerable();
 
-        // Filter by second token addresses
-if (filterModel.SecondTokenAddresses.Count > 0)
-{
-    // Selected values come as display strings like "USDC (EPjF...)".
-    // Extract plain addresses for comparison.
-    var selectedAddresses = filterModel.SecondTokenAddresses
-        .Select(v =>
+        // Filter by predefined second tokens (wSOL, USDT, USDC for Solana).
+        if (filterModel.SecondTokenAddresses.Count > 0 && selectedNetwork == Network.Solana)
         {
-            var start = v.IndexOf('(');
-            var end = v.IndexOf(')');
-            if (start >= 0 && end > start)
-                return v.Substring(start + 1, end - start - 1); // truncated address inside ()
-            return v;
-        })
-        .ToList();
+            var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    result = result.Where(p =>
-        selectedAddresses.Any(sel =>
-            p.SecondTokenAddress.Contains(sel, StringComparison.OrdinalIgnoreCase)));
-}
+            foreach (var selected in filterModel.SecondTokenAddresses)
+            {
+                foreach (var kvp in _predefinedSolanaSecondTokens)
+                {
+                    var addr = kvp.Key;
+                    var symbol = kvp.Value;
 
+                    if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        selectedAddresses.Add(addr);
+                    }
+                }
+            }
+
+            if (selectedAddresses.Count > 0)
+            {
+                result = result.Where(p => selectedAddresses.Contains(p.SecondTokenAddress));
+            }
+        }
 
         // Filter by minimum TVL
         if (filterModel.MinTvlUsd > 0)
@@ -367,11 +364,10 @@ if (filterModel.SecondTokenAddresses.Count > 0)
         }
 
         // Filter by swaps date (if swap has timestamp)
-        // TODO: Adjust based on actual API response - this assumes LastSwapTimestamp field
         if (filterModel.SwapsFromDate.HasValue)
         {
-            result = result.Where(p => 
-                p.LastSwapTimestamp.HasValue && 
+            result = result.Where(p =>
+                p.LastSwapTimestamp.HasValue &&
                 p.LastSwapTimestamp.Value >= filterModel.SwapsFromDate.Value);
         }
 
@@ -403,21 +399,20 @@ if (filterModel.SecondTokenAddresses.Count > 0)
     private void OnPoolRowClick(TableRowClickEventArgs<PoolInfo> args)
     {
         selectedPool = args.Item;
-        
-        // TODO: Implement pool click action (e.g., navigate to pool details, open external link)
+
+        // TODO: Implement pool click action (e.g., navigate to pool details, open external link).
         Console.WriteLine($"Pool clicked: {args.Item?.PoolAddress}");
-        
-        // Extension point for future functionality
+
         HandlePoolSelection(args.Item);
     }
 
     /// <summary>
-    /// Extension point for handling pool selection
+    /// Extension point for handling pool selection.
     /// </summary>
     private void HandlePoolSelection(PoolInfo? pool)
     {
         if (pool == null) return;
-        
+
         // TODO: Implement desired action:
         // - Navigate to pool details page
         // - Open pool in DEX explorer
@@ -438,7 +433,7 @@ if (filterModel.SecondTokenAddresses.Count > 0)
     {
         if (string.IsNullOrEmpty(address) || address.Length <= 12)
             return address;
-        
+
         return $"{address[..6]}...{address[^4..]}";
     }
 }
