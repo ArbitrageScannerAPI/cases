@@ -44,8 +44,10 @@ namespace DexResearchArbitrage.Models
         [JsonPropertyName("token1_price_usd")]
         public decimal? Token1PriceUsd { get; set; }
 
+        // Was: public DateTime CreatedAtTimestamp { get; set; }
+        // Some pools return null here, so it must be nullable.
         [JsonPropertyName("created_at_timestamp")]
-        public DateTime CreatedAtTimestamp { get; set; }
+        public DateTime? CreatedAtTimestamp { get; set; }
     }
 
     public class LiquidityPoolTokenInfo
