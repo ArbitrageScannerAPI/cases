@@ -23,6 +23,15 @@
             </MudSelect>
         </MudItem>
 
+        <!-- Swaps From Date -->
+        <MudItem xs="12" md="6" lg="2">
+            <MudDatePicker Label="Swaps From Date"
+                           @bind-Date="Filters.SwapsFromDate"
+                           Clearable="true"
+                           MaxDate="DateTime.Today"
+                           Dense="true" />
+        </MudItem>
+
         <!-- TVL Filter -->
         <MudItem xs="12" md="6" lg="2">
             <MudNumericField T="decimal"
@@ -34,15 +43,7 @@
                              Dense="true" />
         </MudItem>
 
-        <!-- Swaps From Date -->
-        <MudItem xs="12" md="6" lg="2">
-            <MudDatePicker Label="Swaps From Date"
-                           @bind-Date="Filters.SwapsFromDate"
-                           Clearable="true"
-                           MaxDate="DateTime.Today"
-                           Dense="true" />
-        </MudItem>
-
+        
         <!-- Min Swaps -->
         <MudItem xs="12" md="6" lg="2">
             <MudNumericField T="int"
