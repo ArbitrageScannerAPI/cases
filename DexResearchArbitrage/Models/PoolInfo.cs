@@ -24,6 +24,13 @@ namespace DexResearchArbitrage.Models
         public bool HasNextPage { get; set; }
     }
 
+    
+    public class LatestPriceResponse
+    {
+        [JsonPropertyName("price_usd")]
+        public decimal PriceUsd { get; set; }
+    }
+
     public class LiquidityPoolItem
     {
         [JsonPropertyName("pool_address")]
@@ -50,6 +57,7 @@ namespace DexResearchArbitrage.Models
         public DateTime? CreatedAtTimestamp { get; set; }
     }
 
+ 
     public class LiquidityPoolTokenInfo
     {
         [JsonPropertyName("token_address")]

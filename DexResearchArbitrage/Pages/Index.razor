@@ -9,6 +9,8 @@
 @inject IJSRuntime JSRuntime
 @inject ITokenValidationService TokenValidationService
 @inject IPoolsService PoolsService
+@inject ITokenPriceService TokenPriceService
+
 
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.h5">DEX Pool Explorer</MudText>
@@ -463,11 +465,58 @@
         // - etc.
     }
 
-    private void OnRefreshTvlClicked()
+    private async void OnRefreshTvlClicked()
+{
+    if (selectedNetwork != Network.Solana)
+        return;
+
+    if (filters.SecondTokenAddresses.Count == 0)
     {
-        // TODO: Implement TVL refresh logic (e.g., re-fetch pools with TVL data).
-        Console.WriteLine("TVL refresh clicked");
+        // TODO: show warning dialog/snackbar:
+        // "Please enable token filter and select at least one of wSOL, USDT or USDC."
+        Console.WriteLine("TVL refresh blocked: no second token filter selected.");
+        return;
     }
+
+    // Map selected filter values ("USDC (...)", ...) to real addresses
+    var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var selected in filters.SecondTokenAddresses)
+    {
+        foreach (var kvp in _predefinedSolanaSecondTokens)
+        {
+            var addr = kvp.Key;
+            var symbol = kvp.Value;
+
+            if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
+            {
+                selectedAddresses.Add(addr);
+            }
+        }
+    }
+
+    if (selectedAddresses.Count == 0)
+    {
+        Console.WriteLine("TVL refresh blocked: could not resolve selected tokens.");
+        return;
+    }
+
+    // TODO: for each selected token get latest price and recalc TVL for pools
+    foreach (var addr in selectedAddresses)
+    {
+        var price = await TokenPriceService.GetLatestPriceUsdAsync(addr);
+        if (price == null)
+            continue;
+
+        Console.WriteLine($"Latest price for {addr}: {price.PriceUsd} USD");
+
+        // TODO: apply price.PriceUsd to recalculate TvlUsd for pools
+        // where this address is used as second token.
+    }
+
+    StateHasChanged();
+}
+
 
     private void OnRefreshSwapsClicked()
     {

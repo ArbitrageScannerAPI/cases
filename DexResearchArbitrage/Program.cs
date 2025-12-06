@@ -17,5 +17,7 @@ builder.Services.AddScoped(sp => new HttpClient());
 // Register application services
 builder.Services.AddScoped<ITokenValidationService, TokenValidationService>();
 builder.Services.AddScoped<IPoolsService, PoolsService>();
+builder.Services.AddScoped<ITokenPriceService, TokenPriceService>();
+
 
 await builder.Build().RunAsync();
