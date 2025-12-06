@@ -108,9 +108,33 @@
                 <MudTh>DEX</MudTh>
                 <MudTh>Pool Address</MudTh>
                 <MudTh>Second Token</MudTh>
-                <MudTh>TVL (USD)</MudTh>
-                <MudTh>Swaps Count</MudTh>
-                <MudTh>Arbitration</MudTh>
+
+                <MudTh>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                   Size="Size.Small"
+                                   Color="Color.Default"
+                                   Class="mr-1"
+                                   OnClick="OnRefreshTvlClicked" />
+                    TVL (USD)
+                </MudTh>
+
+                <MudTh>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                   Size="Size.Small"
+                                   Color="Color.Default"
+                                   Class="mr-1"
+                                   OnClick="OnRefreshSwapsClicked" />
+                    Swaps Count
+                </MudTh>
+
+                <MudTh>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                   Size="Size.Small"
+                                   Color="Color.Default"
+                                   Class="mr-1"
+                                   OnClick="OnRefreshArbitrationClicked" />
+                    Arbitration
+                </MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="№">@(filteredPools.IndexOf(context) + 1)</MudTd>
@@ -437,6 +461,24 @@
         // - Open pool in DEX explorer
         // - Show pool details dialog
         // - etc.
+    }
+
+    private void OnRefreshTvlClicked()
+    {
+        // TODO: Implement TVL refresh logic (e.g., re-fetch pools with TVL data).
+        Console.WriteLine("TVL refresh clicked");
+    }
+
+    private void OnRefreshSwapsClicked()
+    {
+        // TODO: Implement swaps count refresh logic.
+        Console.WriteLine("Swaps Count refresh clicked");
+    }
+
+    private void OnRefreshArbitrationClicked()
+    {
+        // TODO: Implement arbitration flag / price diff refresh logic.
+        Console.WriteLine("Arbitration refresh clicked");
     }
 
     private string SelectedRowStyleFunc(PoolInfo pool, int rowNumber)
