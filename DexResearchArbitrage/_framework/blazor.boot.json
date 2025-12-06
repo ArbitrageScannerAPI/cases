@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "DexResearcArbitrage",
   "resources": {
-    "hash": "sha256-tst2fMeG/ChWlfy6yPmBdfWxiHD7WBmKEkUlBbPRBjA=",
+    "hash": "sha256-g/a+7wE4zaE9wtzAOd0wTz2Ki756aJMR4Uwu745yOfQ=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -58,7 +58,7 @@
       "System.Text.RegularExpressions.wasm": "sha256-zbikU10OASq5Olh6ANvliGXLBGBhQ36wcjr2UsL2c+g=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "System.Private.CoreLib.wasm": "sha256-t8567ZKJpukx8MQYNwms/RguX48w8iO5k7QnerkzdDA=",
-      "DexResearcArbitrage.wasm": "sha256-gL92dvG2oRPMDahjBef50GQXONUYmhgKY3ibud8eSzw="
+      "DexResearcArbitrage.wasm": "sha256-LW2E/hOv7Gn2xFngQHbJJJtKPd1TEGefeic3gytBClQ="
     }
   },
   "cacheBootResources": true,
