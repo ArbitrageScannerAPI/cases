@@ -472,13 +472,16 @@
 
     if (filters.SecondTokenAddresses.Count == 0)
     {
-        // TODO: show warning dialog/snackbar:
-        // "Please enable token filter and select at least one of wSOL, USDT or USDC."
+        // TODO: replace with MudDialog or Snackbar if desired
         Console.WriteLine("TVL refresh blocked: no second token filter selected.");
+        await DialogService.ShowMessageBox(
+            "Warning",
+            "Please enable token filter and select at least one of wSOL, USDT or USDC.",
+            yesText: "OK");
         return;
     }
 
-    // Map selected filter values ("USDC (...)", ...) to real addresses
+    // Resolve selected display values ("USDC (...)" etc.) to actual addresses
     var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     foreach (var selected in filters.SecondTokenAddresses)
@@ -501,7 +504,7 @@
         return;
     }
 
-    // TODO: for each selected token get latest price and recalc TVL for pools
+    // Call latest price API for each selected token
     foreach (var addr in selectedAddresses)
     {
         var price = await TokenPriceService.GetLatestPriceUsdAsync(addr);
@@ -510,12 +513,12 @@
 
         Console.WriteLine($"Latest price for {addr}: {price.PriceUsd} USD");
 
-        // TODO: apply price.PriceUsd to recalculate TvlUsd for pools
-        // where this address is used as second token.
+        // TODO: here later you will recalculate TvlUsd for pools using this token
     }
 
     StateHasChanged();
 }
+
 
 
     private void OnRefreshSwapsClicked()
