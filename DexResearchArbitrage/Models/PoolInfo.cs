@@ -106,4 +106,44 @@ namespace DexResearchArbitrage.Models
         
         // TODO: Adjust based on actual API response structure
     }
+
+    public class AddressTokensBalanceResponse
+{
+    [JsonPropertyName("meta")]
+    public AddressTokensMeta Meta { get; set; } = new();
+
+    [JsonPropertyName("data")]
+    public List<AddressTokenBalanceItem> Data { get; set; } = new();
+}
+
+public class AddressTokensMeta
+{
+    [JsonPropertyName("limit")]
+    public int Limit { get; set; }
+
+    [JsonPropertyName("offset")]
+    public int Offset { get; set; }
+
+    [JsonPropertyName("has_next_page")]
+    public bool HasNextPage { get; set; }
+}
+
+public class AddressTokenBalanceItem
+{
+    [JsonPropertyName("token_address")]
+    public string TokenAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("amount")]
+    public decimal Amount { get; set; }
+
+    [JsonPropertyName("amount_usd")]
+    public decimal? AmountUsd { get; set; }
+}
+
 }
