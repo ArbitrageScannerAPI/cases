@@ -95,94 +95,103 @@
     <!-- Pools Table -->
     @if (allPools.Count > 0)
     {
-        <MudTable Items="@filteredPools" 
-                  T="PoolInfo" 
-                  Hover="true"
-                  Bordered="true"
-                  Breakpoint="Breakpoint.Sm"
-                  FixedHeader="true"
-                  Height="calc(100vh - 450px)"
-                  Dense="true"
-                  OnRowClick="OnPoolRowClick"
-                  RowStyleFunc="@SelectedRowStyleFunc"
-                  @bind-SelectedItem="selectedPool">
-            <HeaderContent>
-                <MudTh Style="width: 50px;">№</MudTh>
-                <MudTh>DEX</MudTh>
-                <MudTh>Pool Address</MudTh>
-                <MudTh>Second Token</MudTh>
+       <MudTable Items="@filteredPools" 
+          T="PoolInfo" 
+          Hover="true"
+          Bordered="true"
+          Breakpoint="Breakpoint.Sm"
+          FixedHeader="true"
+          Height="calc(100vh - 450px)"
+          Dense="true"
+          OnRowClick="OnPoolRowClick"
+          RowStyleFunc="@SelectedRowStyleFunc"
+          @bind-SelectedItem="selectedPool">
+    <HeaderContent>
+        <MudTh Style="width: 50px;">№</MudTh>
+        <MudTh>DEX</MudTh>
+        <MudTh>Pool Address</MudTh>
+        <MudTh>Second Token</MudTh>
 
-                <MudTh>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                   Size="Size.Small"
-                                   Color="Color.Default"
-                                   Class="mr-1"
-                                   OnClick="OnRefreshTvlClicked" />
-                    TVL (USD)
-                </MudTh>
+        <MudTh>
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           Color="Color.Default"
+                           Class="mr-1"
+                           OnClick="OnRefreshTvlClicked" />
+            TVL (USD)
+        </MudTh>
 
-                <MudTh>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                   Size="Size.Small"
-                                   Color="Color.Default"
-                                   Class="mr-1"
-                                   OnClick="OnRefreshSwapsClicked" />
-                    Swaps Count
-                </MudTh>
+        <MudTh>
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           Color="Color.Default"
+                           Class="mr-1"
+                           OnClick="OnRefreshSwapsClicked" />
+            Swaps Count
+        </MudTh>
 
-                <MudTh>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                   Size="Size.Small"
-                                   Color="Color.Default"
-                                   Class="mr-1"
-                                   OnClick="OnRefreshArbitrationClicked" />
-                    Arbitration
-                </MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="№">@(filteredPools.IndexOf(context) + 1)</MudTd>
-                <MudTd DataLabel="DEX">@context.Dex</MudTd>
+        <MudTh>
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           Color="Color.Default"
+                           Class="mr-1"
+                           OnClick="OnRefreshArbitrationClicked" />
+            Arbitration
+        </MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@(filteredPools.IndexOf(context) + 1)</MudTd>
+        <MudTd DataLabel="DEX">@context.Dex</MudTd>
+        <MudTd DataLabel="Pool Address">
+            <div class="d-flex align-center">
+                <MudTooltip Text="@context.PoolAddress">
+                    <span>@TruncateAddress(context.PoolAddress)</span>
+                </MudTooltip>
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                               Size="Size.Small"
+                               Color="Color.Default"
+                               Class="ml-1"
+                               OnClick="@(() => CopyPoolAddressAsync(context.PoolAddress))" />
+            </div>
+        </MudTd>
+        <MudTd DataLabel="Second Token">
+            @if (!string.IsNullOrEmpty(context.SecondTokenSymbol))
+            {
+                <MudTooltip Text="@context.SecondTokenAddress">
+                    <span>@context.SecondTokenSymbol</span>
+                </MudTooltip>
+            }
+            else
+            {
+                <MudTooltip Text="@context.SecondTokenAddress">
+                    <span>@TruncateAddress(context.SecondTokenAddress)</span>
+                </MudTooltip>
+            }
+        </MudTd>
+        <MudTd DataLabel="TVL (USD)">
+            @if (isRecalculatingTvl)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                @context.TvlUsd.ToString("N2")
+            }
+        </MudTd>
+        <MudTd DataLabel="Swaps Count">@context.CountSwaps</MudTd>
+        <MudTd DataLabel="Arbitration">
+            @if (context.ArbitrationFlag)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
 
-                <MudTd DataLabel="Pool Address">
-                    <div class="d-flex align-center">
-                        <MudTooltip Text="@context.PoolAddress">
-                            <span>@TruncateAddress(context.PoolAddress)</span>
-                        </MudTooltip>
-
-                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
-                            Size="Size.Small"
-                            Color="Color.Default"
-                            Class="ml-1"
-                            OnClick="@(() => CopyPoolAddressAsync(context.PoolAddress))" />
-                    </div>
-                </MudTd>
-
-                <MudTd DataLabel="Second Token">
-                    @if (!string.IsNullOrEmpty(context.SecondTokenSymbol))
-                    {
-                        <MudTooltip Text="@context.SecondTokenAddress">
-                            <span>@context.SecondTokenSymbol</span>
-                        </MudTooltip>
-                    }
-                    else
-                    {
-                        <MudTooltip Text="@context.SecondTokenAddress">
-                            <span>@TruncateAddress(context.SecondTokenAddress)</span>
-                        </MudTooltip>
-                    }
-                </MudTd>
-                <MudTd DataLabel="TVL (USD)">
-                        @if (isRecalculatingTvl)
-                        {
-                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                        }
-                        else
-                        {
-                             @context.TvlUsd.ToString("N2")
-                        }
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
         
         <!-- Total Records Info -->
         <MudPaper Class="pa-2 mt-2" Elevation="0">
