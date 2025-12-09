@@ -72,24 +72,22 @@ namespace DexResearchArbitrage.Models
 
     // Existing view model used by UI
     public class PoolInfo
-    {
-        public string Dex { get; set; } = string.Empty;
-        public string PoolAddress { get; set; } = string.Empty;
+{
+    public string Dex { get; set; } = string.Empty;
+    public string PoolAddress { get; set; } = string.Empty;
+    public string SecondTokenAddress { get; set; } = string.Empty;
+    public string? SecondTokenSymbol { get; set; }
 
-        // Second token in pair relative to searched token
-        public string SecondTokenAddress { get; set; } = string.Empty;
-        public string? SecondTokenSymbol { get; set; }
+    public decimal TvlUsd { get; set; }
+    public int CountSwaps { get; set; }
+    public decimal PriceDiffPercent { get; set; }
+    public bool ArbitrationFlag { get; set; }
+    public DateTime? LastSwapTimestamp { get; set; }
 
-        // For now TVL and swaps are not provided by this endpoint,
-        // so we keep them as 0 until a richer API is integrated.
-        public decimal TvlUsd { get; set; }
-        public int CountSwaps { get; set; }
+    // Новый флаг — идёт ли пересчёт TVL по этому пулу
+    public bool IsTvlLoading { get; set; }
+}
 
-        public decimal PriceDiffPercent { get; set; }
-        public bool ArbitrationFlag { get; set; }
-
-        public DateTime? LastSwapTimestamp { get; set; }
-    }
 
 
     

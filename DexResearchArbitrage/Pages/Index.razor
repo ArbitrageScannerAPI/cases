@@ -169,7 +169,7 @@
             }
         </MudTd>
         <MudTd DataLabel="TVL (USD)">
-            @if (isRecalculatingTvl)
+            @if (context.IsTvlLoading)
             {
                 <MudProgressCircular Size="Size.Small" Indeterminate="true" />
             }
@@ -178,6 +178,7 @@
                 @context.TvlUsd.ToString("N2")
             }
         </MudTd>
+
         <MudTd DataLabel="Swaps Count">@context.CountSwaps</MudTd>
         <MudTd DataLabel="Arbitration">
             @if (context.ArbitrationFlag)
@@ -227,7 +228,7 @@
     private List<PoolInfo> allPools = new();
     private List<PoolInfo> filteredPools = new();
     private PoolInfo? selectedPool;
-    private bool isRecalculatingTvl = false;
+    
 
     // Filters
     private PoolFiltersModel filters = new();
@@ -505,78 +506,64 @@
     if (selectedNetwork != Network.Solana)
         return;
 
-    // Сброс значения фильтра TVL при каждом пересчёте
     filters.MinTvlUsd = 0;
 
-    // 1. Проверяем, что пользователь выбрал Second Token в фильтре
     if (filters.SecondTokenAddresses.Count == 0)
     {
         await DialogService.ShowMessageBox(
             "Warning",
             "To refresh TVL, please apply the Second Token filter and select at least one of wSOL, USDT or USDC.",
             yesText: "OK");
-        Console.WriteLine("TVL refresh blocked: no Second Token filter selected.");
-        StateHasChanged();
         return;
     }
 
-    // 2. Проверяем, что фильтр реально применён к таблице
-    // Если filteredPools == allPools, значит фильтр ещё не применён (или не влияет на список)
     if (filteredPools.Count == 0 || filteredPools.Count == allPools.Count)
     {
         await DialogService.ShowMessageBox(
             "Warning",
             "Second Token filter is not applied to the table. Click 'Apply' in filters and try again.",
             yesText: "OK");
-        Console.WriteLine("TVL refresh blocked: Second Token filter not applied.");
-        StateHasChanged();
         return;
     }
 
-    // 3. Разрешённые вторые токены (адреса) — по предустановленным
     var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
     foreach (var selected in filters.SecondTokenAddresses)
     {
         foreach (var kvp in _predefinedSolanaSecondTokens)
         {
             var addr = kvp.Key;
             var symbol = kvp.Value;
-
             if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
-            {
                 selectedAddresses.Add(addr);
-            }
         }
     }
-
     if (selectedAddresses.Count == 0)
     {
         await DialogService.ShowMessageBox(
             "Warning",
             "Unable to resolve selected Second Token filters. Please reselect them.",
             yesText: "OK");
-        Console.WriteLine("TVL refresh blocked: could not resolve selected tokens.");
-        StateHasChanged();
         return;
     }
 
-    // 4. Включаем индикатор загрузки для всех строк
-    isRecalculatingTvl = true;
+    // Включаем кружки для ВСЕХ видимых пулов
+    foreach (var pool in filteredPools)
+    {
+        pool.IsTvlLoading = true;
+        pool.TvlUsd = 0; // можно сбросить старое значение
+    }
     StateHasChanged();
 
     try
     {
-        // 5. Пересчёт только для тех пулов, которые сейчас видны в таблице (filteredPools),
-        //    строго по очереди, с обновлением UI после каждого пула.
         foreach (var pool in filteredPools)
         {
             try
             {
-                // Дополнительно убеждаемся, что второй токен пула входит в выбранные фильтры
                 if (!selectedAddresses.Contains(pool.SecondTokenAddress))
                 {
                     pool.TvlUsd = 0;
+                    pool.IsTvlLoading = false;
                     StateHasChanged();
                     continue;
                 }
@@ -585,6 +572,7 @@
                 if (balances == null || balances.Data.Count == 0)
                 {
                     pool.TvlUsd = 0;
+                    pool.IsTvlLoading = false;
                     StateHasChanged();
                     continue;
                 }
@@ -593,39 +581,28 @@
                     x.TokenAddress.Equals(pool.SecondTokenAddress, StringComparison.OrdinalIgnoreCase));
 
                 if (match?.AmountUsd is decimal amountUsd)
-                {
-                    // TVL = 2.0 * amount_usd
                     pool.TvlUsd = 2.0m * amountUsd;
-                }
                 else
-                {
                     pool.TvlUsd = 0;
-                }
 
-                // Как только посчитали TVL по одному пулу — сразу обновляем UI
+                // Готово для этого пула: убираем кружок и сразу обновляем UI
+                pool.IsTvlLoading = false;
                 StateHasChanged();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[TVL] Error recalculating for pool {pool.PoolAddress}: {ex.Message}");
                 pool.TvlUsd = 0;
+                pool.IsTvlLoading = false;
                 StateHasChanged();
             }
         }
-
-        // ApplyFilters здесь не вызываем, чтобы не перерисовывать всю таблицу повторно.
     }
     finally
     {
-        isRecalculatingTvl = false;
-        StateHasChanged();
+        // Ничего глобально не выключаем — все строки сами сняли IsTvlLoading = false
     }
 }
-
-
-
-
-
 
 
     private async void OnRefreshSwapsClicked()
