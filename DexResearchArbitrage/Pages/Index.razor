@@ -142,11 +142,21 @@
             <RowTemplate>
                 <MudTd DataLabel="№">@(filteredPools.IndexOf(context) + 1)</MudTd>
                 <MudTd DataLabel="DEX">@context.Dex</MudTd>
+
                 <MudTd DataLabel="Pool Address">
-                    <MudTooltip Text="@context.PoolAddress">
-                        <span>@TruncateAddress(context.PoolAddress)</span>
-                    </MudTooltip>
+                    <div class="d-flex align-center">
+                        <MudTooltip Text="@context.PoolAddress">
+                            <span>@TruncateAddress(context.PoolAddress)</span>
+                        </MudTooltip>
+
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                            Size="Size.Small"
+                            Color="Color.Default"
+                            Class="ml-1"
+                            OnClick="@(() => CopyPoolAddressAsync(context.PoolAddress))" />
+                    </div>
                 </MudTd>
+
                 <MudTd DataLabel="Second Token">
                     @if (!string.IsNullOrEmpty(context.SecondTokenSymbol))
                     {
@@ -288,6 +298,22 @@
         // Optional: auto-validate on blur in the future.
         return Task.CompletedTask;
     }
+
+    private async Task CopyPoolAddressAsync(string address)
+    {
+    try
+    {
+        var ok = await JSRuntime.InvokeAsync<bool>("copyToClipboard", address);
+        Console.WriteLine(ok
+            ? $"Pool address copied: {address}"
+            : "Clipboard copy returned false");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Clipboard copy error: {ex.Message}");
+    }
+    }
+
 
     private async Task ValidateAndLoadPools()
     {
