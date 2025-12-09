@@ -521,11 +521,22 @@
 
 
 
-    private void OnRefreshSwapsClicked()
+    private async void OnRefreshSwapsClicked()
     {
-        // TODO: Implement swaps count refresh logic.
-        Console.WriteLine("Swaps Count refresh clicked");
+    // Allow refresh only when TVL filter is set to at least 10 000 USD
+    if (filters.MinTvlUsd < 10000m)
+    {
+        await DialogService.ShowMessageBox(
+            "Warning",
+            "To refresh Swaps Count, please set TVL filter to at least 10,000 USD.",
+            yesText: "OK");
+        Console.WriteLine("Swaps refresh blocked: MinTvlUsd < 10000.");
+        return;
     }
+
+    // TODO: implement swaps statistics refresh logic here (API calls, updates of CountSwaps, etc.)
+    Console.WriteLine("Swaps Count refresh started (TVL filter >= 10000).");
+   }
 
     private void OnRefreshArbitrationClicked()
     {
