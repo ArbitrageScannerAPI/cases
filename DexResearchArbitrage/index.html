@@ -16,5 +16,18 @@
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+    // Clipboard copy function
+    <script>
+    window.copyToClipboard = async function (text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.error('Clipboard copy failed', e);
+      return false;
+    }
+  }
+</script>
 </body>
 </html>
