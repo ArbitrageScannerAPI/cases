@@ -505,17 +505,32 @@
     if (selectedNetwork != Network.Solana)
         return;
 
+    // Сброс значения фильтра TVL при каждом пересчёте
+    filters.MinTvlUsd = 0;
+    StateHasChanged();
+
+    // Проверяем, что фильтр Second Token реально включён
     if (filters.SecondTokenAddresses.Count == 0)
     {
         await DialogService.ShowMessageBox(
             "Warning",
-            "Please enable token filter and select at least one of wSOL, USDT or USDC.",
+            "To refresh TVL, please apply the Second Token filter and select at least one of wSOL, USDT or USDC.",
             yesText: "OK");
-        Console.WriteLine("TVL refresh blocked: no second token filter selected.");
+        Console.WriteLine("TVL refresh blocked: no Second Token filter applied.");
         return;
     }
 
-    // Разрешённые вторые токены (адреса)
+    if (filteredPools.Count == 0)
+    {
+        await DialogService.ShowMessageBox(
+            "Warning",
+            "Second Token filter is applied, but there are no pools in the table. Adjust filters and try again.",
+            yesText: "OK");
+        Console.WriteLine("TVL refresh blocked: filteredPools is empty.");
+        return;
+    }
+
+    // Разрешённые вторые токены (адреса) — по предустановленным
     var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     foreach (var selected in filters.SecondTokenAddresses)
@@ -536,52 +551,65 @@
     {
         await DialogService.ShowMessageBox(
             "Warning",
-            "Unable to resolve selected second tokens. Please reselect filters.",
+            "Unable to resolve selected Second Token filters. Please reselect them.",
             yesText: "OK");
         Console.WriteLine("TVL refresh blocked: could not resolve selected tokens.");
         return;
     }
 
+    // Включаем индикатор загрузки для всех строк
     isRecalculatingTvl = true;
     StateHasChanged();
 
     try
     {
-        // Для каждого пула перезапрашиваем балансы и считаем TVL
-        foreach (var pool in allPools)
+        // Пересчёт только для тех пулов, которые сейчас видны в таблице
+        foreach (var pool in filteredPools)
         {
             try
             {
+                // Дополнительно убеждаемся, что второй токен этого пула входит в выбранные
+                if (!selectedAddresses.Contains(pool.SecondTokenAddress))
+                {
+                    pool.TvlUsd = 0;
+                    // Обновляем UI сразу для этой строки
+                    StateHasChanged();
+                    continue;
+                }
+
                 var balances = await BalancesService.GetAddressTokensBalanceAsync(pool.PoolAddress, 20);
                 if (balances == null || balances.Data.Count == 0)
                 {
                     pool.TvlUsd = 0;
+                    StateHasChanged();
                     continue;
                 }
 
-                // Ищем запись по адресу второго токена
                 var match = balances.Data.FirstOrDefault(x =>
                     x.TokenAddress.Equals(pool.SecondTokenAddress, StringComparison.OrdinalIgnoreCase));
 
                 if (match?.AmountUsd is decimal amountUsd)
                 {
-                    // TVL = 2.0 * amount_usd
                     pool.TvlUsd = 2.0m * amountUsd;
                 }
                 else
                 {
                     pool.TvlUsd = 0;
                 }
+
+                // Как только посчитали TVL по одному пулу — сразу обновляем интерфейс
+                StateHasChanged();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[TVL] Error recalculating for pool {pool.PoolAddress}: {ex.Message}");
                 pool.TvlUsd = 0;
+                StateHasChanged();
             }
         }
 
-        // Обновляем отфильтрованный список, чтобы отражать новые значения TVL
-        ApplyFilters();
+        // Здесь НЕ вызываем ApplyFilters(), чтобы не пересчитывать всю таблицу ещё раз.
+        // Если потом понадобится фильтрация по TVL, её можно запускать отдельной кнопкой.
     }
     finally
     {
@@ -589,6 +617,8 @@
         StateHasChanged();
     }
 }
+
+
 
 
 
