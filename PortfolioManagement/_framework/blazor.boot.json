@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "DemoBlazor",
   "resources": {
-    "hash": "sha256-MqXSnneY3mYWAjY5vz0w3S2XVhVbRWIbkEBK3ghTtPk=",
+    "hash": "sha256-F53JkdLo8ucW5Nf+eZjT6ODgvWtvaFUpxU0Hl5CwQXE=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -59,7 +59,7 @@
       "System.Text.RegularExpressions.wasm": "sha256-zbikU10OASq5Olh6ANvliGXLBGBhQ36wcjr2UsL2c+g=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "System.Private.CoreLib.wasm": "sha256-7EtVgHT178dulOGEGSoVxQoHfrPXbylQmuw9HjfIeZs=",
-      "DemoBlazor.wasm": "sha256-luTt5EzaNh8MytKV0S56swqg0Uk3fazGXhb5eh60fQg="
+      "DemoBlazor.wasm": "sha256-OD91M6HxNu6hvlNjB5wWvnTW7U3US2vFt12pkbJrdQs="
     }
   },
   "cacheBootResources": true,
