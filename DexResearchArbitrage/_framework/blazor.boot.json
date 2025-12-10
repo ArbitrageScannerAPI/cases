@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "DexResearcArbitrage",
   "resources": {
-    "hash": "sha256-NJWzVikNEour+ndIKuO0udJYHkqN+tFW8CCooZ+uTLM=",
+    "hash": "sha256-B+jqkQbv7EWz3/MsZ8revXWueIQve4PYtbQkQlz4kuY=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -52,13 +52,13 @@
       "System.ObjectModel.wasm": "sha256-l/MqXlK3Ch93Pvr4XhYaSajQKuv8R7X+q9FPy94r/p0=",
       "System.Private.Uri.wasm": "sha256-sOTPtizwLD6Zpt9XGpL9f4XvkGnEFDh/ipIksbJ5XTk=",
       "System.Runtime.InteropServices.JavaScript.wasm": "sha256-obpfktlMMZRd/6+94Eqsz43u4IBXSwphEA0oRmrGRrE=",
-      "System.Runtime.wasm": "sha256-yVNyG+Ml8q0DqXWrDyAN6CynrSoCyttq1n+G8fy7JT8=",
+      "System.Runtime.wasm": "sha256-6mGSniEwviSNPiwE3I0Yw+0gBxSzhRU9vdh2IeqXEHg=",
       "System.Text.Encodings.Web.wasm": "sha256-ZfCb2TSGxncfpyCkdqhIDqbsmxhl1+L2kv26ZWtTdWE=",
       "System.Text.Json.wasm": "sha256-sdXxpmHE69NQcxwitzscBYF9sfA+ZAYJjfbIdkvH1Ug=",
       "System.Text.RegularExpressions.wasm": "sha256-zbikU10OASq5Olh6ANvliGXLBGBhQ36wcjr2UsL2c+g=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
-      "System.Private.CoreLib.wasm": "sha256-t8567ZKJpukx8MQYNwms/RguX48w8iO5k7QnerkzdDA=",
-      "DexResearcArbitrage.wasm": "sha256-NAgMsnXyd51dQIGrP0sb0dF6rYgcVRTyfLwR+ZQO4f8="
+      "System.Private.CoreLib.wasm": "sha256-yALNuQWQZsR2lyR/VQwOHkTCoJDDxXu3Y3ZDKqnGzY8=",
+      "DexResearcArbitrage.wasm": "sha256-Jk2BINgqhhTRoIp96XtHE03qe502cpQkLipq/j/PAKE="
     }
   },
   "cacheBootResources": true,
