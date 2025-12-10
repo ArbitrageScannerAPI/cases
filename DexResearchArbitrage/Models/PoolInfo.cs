@@ -86,6 +86,8 @@ namespace DexResearchArbitrage.Models
 
     // Новый флаг — идёт ли пересчёт TVL по этому пулу
     public bool IsTvlLoading { get; set; }
+    public bool IsSwapsLoading { get; set; }
+
 }
 
 
@@ -143,5 +145,38 @@ public class AddressTokenBalanceItem
     [JsonPropertyName("amount_usd")]
     public decimal? AmountUsd { get; set; }
 }
+
+public class PoolSwapsResponse
+{
+    [JsonPropertyName("meta")]
+    public PoolSwapsMeta Meta { get; set; } = new();
+
+    [JsonPropertyName("data")]
+    public List<PoolSwapItem> Data { get; set; } = new();
+}
+
+public class PoolSwapsMeta
+{
+    [JsonPropertyName("limit")]
+    public int Limit { get; set; }
+
+    [JsonPropertyName("offset")]
+    public int Offset { get; set; }
+
+    [JsonPropertyName("has_next_page")]
+    public bool HasNextPage { get; set; }
+}
+
+public class PoolSwapItem
+{
+    [JsonPropertyName("tx")]
+    public string Tx { get; set; } = string.Empty;
+
+    [JsonPropertyName("timestamp")]
+    public DateTime Timestamp { get; set; }
+
+    
+}
+
 
 }

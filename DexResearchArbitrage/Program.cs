@@ -19,6 +19,8 @@ builder.Services.AddScoped<ITokenValidationService, TokenValidationService>();
 builder.Services.AddScoped<IPoolsService, PoolsService>();
 builder.Services.AddScoped<ITokenPriceService, TokenPriceService>();
 builder.Services.AddScoped<IBalancesService, BalancesService>();
+builder.Services.AddScoped<ISwapsService, SwapsService>();
+
 
 
 await builder.Build().RunAsync();
