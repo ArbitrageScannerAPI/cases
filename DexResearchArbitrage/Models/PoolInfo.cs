@@ -88,6 +88,13 @@ namespace DexResearchArbitrage.Models
     public bool IsTvlLoading { get; set; }
     public bool IsSwapsLoading { get; set; }
 
+    // Latest USD price of the first token for this pool (used for Arbitration column)
+    public decimal ArbitrationPriceUsd { get; set; }
+
+    // Cached price history: first/second price per swap for this pool
+    public List<SwapPricePoint> PriceHistory { get; set; } = new();
+    
+
 }
 
 
@@ -175,7 +182,24 @@ public class PoolSwapItem
     [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; set; }
 
-    
+    [JsonPropertyName("from_token_address")]
+    public string FromTokenAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("from_token_amount")]
+    public decimal FromTokenAmount { get; set; }
+
+    [JsonPropertyName("to_token_address")]
+    public string ToTokenAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("to_token_amount")]
+    public decimal ToTokenAmount { get; set; }
+}
+
+// Price history item: price of "first token" in terms of "second token" (or USD)
+public class SwapPricePoint
+{
+    public DateTime Timestamp { get; set; }
+    public decimal Price { get; set; }
 }
 
 

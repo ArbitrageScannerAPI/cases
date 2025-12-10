@@ -193,13 +193,13 @@
          </MudTd>
 
         <MudTd DataLabel="Arbitration">
-            @if (context.ArbitrationFlag)
+            @if (context.ArbitrationPriceUsd > 0)
             {
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                @context.ArbitrationPriceUsd.ToString("F6")
             }
             else
             {
-                <MudIcon Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" />
+                <span>-</span>
             }
         </MudTd>
     </RowTemplate>
@@ -232,6 +232,12 @@
 
 @code {
     // State
+    // Special pool for wSOL-USDC price
+    private const string WsolUsdcPoolAddress = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE";
+
+    // Cached wSOL price in USD per swap
+    private List<SwapPricePoint> _wsolUsdPriceHistory = new();
+
     private Network selectedNetwork = Network.None;
     private string tokenAddress = string.Empty;
     private TokenValidationResult? validatedToken;
@@ -622,7 +628,7 @@
 
     private async void OnRefreshSwapsClicked()
 {
-    // Allow refresh only when TVL filter is set to at least 1000 USD
+    // TVL condition: at least 1,000 USD
     if (filters.MinTvlUsd < 1000m)
     {
         await DialogService.ShowMessageBox(
@@ -643,67 +649,194 @@
         return;
     }
 
-    // Optional: use date filter from UI as upper bound (inclusive)
-    var toDate = filters.SwapsFromDate; // эта дата уже задаётся в UI, но до этого не применялась
+    var fromDate = filters.SwapsFromDate; // диапазон от этой даты и до сейчас
 
-    // Set loading flag for all visible pools
+    // Build wSOL-USD price history (for pools where second token is wSOL)
+    await BuildWsolUsdPriceHistoryAsync(fromDate);
+
+    // Set loading for all visible pools
     foreach (var pool in filteredPools)
     {
         pool.IsSwapsLoading = true;
-        pool.CountSwaps = 0; // reset previous value
+        pool.CountSwaps = 0;
+        pool.ArbitrationPriceUsd = 0;
+        pool.PriceHistory.Clear();
     }
     StateHasChanged();
 
-    try
+    var from = fromDate?.Date ?? DateTime.MinValue;
+    var to = DateTime.UtcNow;
+
+    foreach (var pool in filteredPools)
     {
-        foreach (var pool in filteredPools)
+        try
         {
-            try
+            var swaps = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 10000);
+            if (swaps == null || swaps.Data.Count == 0)
             {
-                var swaps = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 10000);
-                if (swaps == null || swaps.Data.Count == 0)
-                {
-                    pool.CountSwaps = 0;
-                    pool.IsSwapsLoading = false;
-                    StateHasChanged();
-                    continue;
-                }
-
-                int count;
-                if (toDate.HasValue)
-                {
-                    // Count swaps from selected date (inclusive) up to "now"
-                    var from = toDate.Value.Date;           // start of selected day
-                    var to   = DateTime.UtcNow;             // current moment
-
-                    count = swaps.Data
-                    .Where(s => s.Timestamp >= from && s.Timestamp <= to)
-                    .Count();
-                }
-                else
-                {
-                    // No date filter: count all returned swaps
-                    count = swaps.Data.Count;
-                }
-
-
-                pool.CountSwaps = count;
-                pool.IsSwapsLoading = false;
-                StateHasChanged();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Swaps] Error recalculating for pool {pool.PoolAddress}: {ex.Message}");
                 pool.CountSwaps = 0;
                 pool.IsSwapsLoading = false;
                 StateHasChanged();
+                continue;
             }
+
+            var firstTokenAddress  = validatedToken?.TokenAddress ?? string.Empty;
+            var secondTokenAddress = pool.SecondTokenAddress;
+
+            var pricePoints = new List<SwapPricePoint>();
+            int countInRange = 0;
+
+            foreach (var s in swaps.Data)
+            {
+                if (s.Timestamp < from || s.Timestamp > to)
+                    continue;
+
+                countInRange++;
+
+                decimal? priceFirstPerSecond = null;
+
+                // Case A: from = first, to = second -> second / first
+                if (string.Equals(s.FromTokenAddress, firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(s.ToTokenAddress,   secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                    s.FromTokenAmount > 0)
+                {
+                    priceFirstPerSecond = (s.ToTokenAmount) / s.FromTokenAmount;
+                }
+                // Case B: from = second, to = first -> second / first (invert amounts)
+                else if (string.Equals(s.FromTokenAddress, secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(s.ToTokenAddress,   firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                         s.ToTokenAmount > 0)
+                {
+                    priceFirstPerSecond = (s.FromTokenAmount) / s.ToTokenAmount;
+                }
+
+                if (!priceFirstPerSecond.HasValue)
+                    continue;
+
+                decimal priceUsd;
+
+                // Second token is USDC or USDT -> price in USD is the same
+                if (string.Equals(secondTokenAddress, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) || // USDC
+                    string.Equals(secondTokenAddress, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", StringComparison.OrdinalIgnoreCase))   // USDT
+                {
+                    priceUsd = priceFirstPerSecond.Value;
+                }
+                // Second token is wSOL -> need wSOL-USD price
+                else if (string.Equals(secondTokenAddress, "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase))
+                {
+                    var wsolUsd = GetClosestWsolUsdPrice(s.Timestamp);
+                    if (!wsolUsd.HasValue)
+                        continue;
+
+                    priceUsd = priceFirstPerSecond.Value * wsolUsd.Value;
+                }
+                else
+                {
+                    // For other second tokens we currently do not compute USD price
+                    continue;
+                }
+
+                pricePoints.Add(new SwapPricePoint
+                {
+                    Timestamp = s.Timestamp,
+                    Price = priceUsd
+                });
+            }
+
+            pool.CountSwaps = countInRange;
+            pool.PriceHistory = pricePoints
+                .OrderBy(p => p.Timestamp)
+                .ToList();
+
+            // Arbitration = price from the latest swap in range (most recent)
+            var latest = pool.PriceHistory.OrderByDescending(p => p.Timestamp).FirstOrDefault();
+            pool.ArbitrationPriceUsd = latest?.Price ?? 0;
+
+            pool.IsSwapsLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Swaps] Error recalculating for pool {pool.PoolAddress}: {ex.Message}");
+            pool.CountSwaps = 0;
+            pool.ArbitrationPriceUsd = 0;
+            pool.IsSwapsLoading = false;
+            StateHasChanged();
         }
     }
-    finally
+}
+
+private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
+{
+    _wsolUsdPriceHistory.Clear();
+
+    var response = await SwapsService.GetPoolSwapsAsync(WsolUsdcPoolAddress, 10000);
+    if (response == null || response.Data.Count == 0)
+        return;
+
+    var from = fromDate?.Date ?? DateTime.MinValue;
+    var to = DateTime.UtcNow;
+
+    foreach (var s in response.Data)
     {
-        // Nothing global to reset; each row clears its own IsSwapsLoading flag
+        if (s.Timestamp < from || s.Timestamp > to)
+            continue;
+
+        // In this special pool we know it is wSOL-USDC.
+        // Price of wSOL in USD = amount_USDC / amount_wSOL.
+
+        decimal? price = null;
+
+        // Case 1: from = wSOL, to = USDC
+        if (string.Equals(s.FromTokenAddress, "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(s.ToTokenAddress,  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) &&
+            s.FromTokenAmount > 0)
+        {
+            price = s.ToTokenAmount / s.FromTokenAmount;
+        }
+        // Case 2: from = USDC, to = wSOL
+        else if (string.Equals(s.FromTokenAddress, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(s.ToTokenAddress,   "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase) &&
+                 s.ToTokenAmount > 0)
+        {
+            price = s.FromTokenAmount / s.ToTokenAmount;
+        }
+
+        if (price.HasValue)
+        {
+            _wsolUsdPriceHistory.Add(new SwapPricePoint
+            {
+                Timestamp = s.Timestamp,
+                Price = price.Value
+            });
+        }
     }
+
+    _wsolUsdPriceHistory = _wsolUsdPriceHistory
+        .OrderBy(x => x.Timestamp)
+        .ToList();
+}
+
+private decimal? GetClosestWsolUsdPrice(DateTime timestamp)
+{
+    if (_wsolUsdPriceHistory.Count == 0)
+        return null;
+
+    // Find point with minimal |t - timestamp|
+    SwapPricePoint? best = null;
+    var bestDiff = TimeSpan.MaxValue;
+
+    foreach (var p in _wsolUsdPriceHistory)
+    {
+        var diff = (p.Timestamp - timestamp).Duration();
+        if (diff < bestDiff)
+        {
+            bestDiff = diff;
+            best = p;
+        }
+    }
+
+    return best?.Price;
 }
 
 
