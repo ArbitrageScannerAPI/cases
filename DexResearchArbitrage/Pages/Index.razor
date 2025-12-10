@@ -254,14 +254,16 @@
         SetDefaultFilters();
     }
 
-    private void SetDefaultFilters()
+   private void SetDefaultFilters()
     {
-        // Default "from date" = 5 days ago (UTC date)
-        filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-5);
+    // set default filters Data
+    
+    filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-5);
 
-        // Default minimum swaps count
-        filters.MinSwapCount = 5000;
+    // MinSwapCount defoult = 0
+    filters.MinSwapCount = 0;
     }
+
 
     private void OnNetworkChanged(Network value)
     {
@@ -444,13 +446,14 @@
             result = result.Where(p => p.CountSwaps >= filterModel.MinSwapCount);
         }
 
-        // Filter by swaps date (if swap has timestamp)
-        if (filterModel.SwapsFromDate.HasValue)
-        {
-            result = result.Where(p =>
-                p.LastSwapTimestamp.HasValue &&
-                p.LastSwapTimestamp.Value >= filterModel.SwapsFromDate.Value);
-        }
+        // Date filter is temporarily disabled. SwapsFromDate will be used by another procedure later.
+        // if (filterModel.SwapsFromDate.HasValue)
+        // {
+        //     result = result.Where(p =>
+        //         p.LastSwapTimestamp.HasValue &&
+        //         p.LastSwapTimestamp.Value >= filterModel.SwapsFromDate.Value);
+        // }
+
 
         // Filter by price difference percentage
         if (filterModel.MinPriceDiffPercent > 0)
