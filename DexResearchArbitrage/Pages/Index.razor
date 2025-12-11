@@ -732,7 +732,7 @@
                 }
                 else
                 {
-                    Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
+                    // Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
 
                     // Yield to UI periodically even when price is not calculated
                     if (processed % 200 == 0)
@@ -755,7 +755,7 @@
                     {
                         Console.WriteLine("[Swaps] no wSOL-USD price found for this timestamp, skipping");
 
-                        if (processed % 1000 == 0)
+                        if (processed % 200 == 0)
                             await Task.Yield();
 
                         continue;
@@ -765,9 +765,9 @@
                 }
                 else
                 {
-                    Console.WriteLine("[Swaps] second token is not USDC/USDT/wSOL, skipping price calculation");
+                    //Console.WriteLine("[Swaps] second token is not USDC/USDT/wSOL, skipping price calculation");
 
-                    if (processed % 1000 == 0)
+                    if (processed % 200 == 0)
                         await Task.Yield();
 
                     continue;
@@ -780,7 +780,7 @@
                 });
 
                 // Yield control to UI every 1000 processed swaps
-                if (processed % 1000 == 0)
+                if (processed % 200 == 0)
                 {
                     await Task.Yield();
                 }
