@@ -735,7 +735,7 @@
                     Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
 
                     // Yield to UI periodically even when price is not calculated
-                    if (processed % 1000 == 0)
+                    if (processed % 200 == 0)
                         await Task.Yield();
 
                     continue;
