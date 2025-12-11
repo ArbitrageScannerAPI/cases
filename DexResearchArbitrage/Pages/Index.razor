@@ -652,7 +652,7 @@
     var fromDate = filters.SwapsFromDate;
 
     // 4 debug count swops
-    Console.WriteLine($"[Swaps] Global fromDate filter = {fromDate?.ToString("O") ?? "null"}");
+    // Console.WriteLine($"[Swaps] Global fromDate filter = {fromDate?.ToString("O") ?? "null"}");
 
     // Start spinners for visible pools
     foreach (var pool in filteredPools)
@@ -687,23 +687,26 @@
             var secondTokenAddress = pool.SecondTokenAddress;
 
             // 4 debug count swops
-            Console.WriteLine($"[Swaps] Pool={pool.PoolAddress}");
-            Console.WriteLine($"[Swaps] firstTokenAddress={firstTokenAddress}");
-            Console.WriteLine($"[Swaps] secondTokenAddress={secondTokenAddress}");
-            Console.WriteLine($"[Swaps] total swaps from API = {swaps.Data.Count}");
+            //Console.WriteLine($"[Swaps] Pool={pool.PoolAddress}");
+            //Console.WriteLine($"[Swaps] firstTokenAddress={firstTokenAddress}");
+            //Console.WriteLine($"[Swaps] secondTokenAddress={secondTokenAddress}");
+            //Console.WriteLine($"[Swaps] total swaps from API = {swaps.Data.Count}");
 
             var pricePoints = new List<SwapPricePoint>();
             int countInRange = 0;
+            int processed = 0;
 
             foreach (var s in swaps.Data)
             {
+                processed++;
+
                 if (s.Timestamp < from || s.Timestamp > to)
                     continue;
 
                 countInRange++;
 
                 // 4 debug count swops
-                Console.WriteLine($"[Swaps] ts={s.Timestamp:O}, from={s.FromTokenAddress}, to={s.ToTokenAddress}");
+                //Console.WriteLine($"[Swaps] ts={s.Timestamp:O}, from={s.FromTokenAddress}, to={s.ToTokenAddress}");
 
                 decimal? priceFirstPerSecond = null;
 
@@ -730,6 +733,11 @@
                 else
                 {
                     Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
+
+                    // Yield to UI periodically even when price is not calculated
+                    if (processed % 1000 == 0)
+                        await Task.Yield();
+
                     continue;
                 }
 
@@ -746,6 +754,10 @@
                     if (!wsolUsd.HasValue)
                     {
                         Console.WriteLine("[Swaps] no wSOL-USD price found for this timestamp, skipping");
+
+                        if (processed % 1000 == 0)
+                            await Task.Yield();
+
                         continue;
                     }
 
@@ -754,6 +766,10 @@
                 else
                 {
                     Console.WriteLine("[Swaps] second token is not USDC/USDT/wSOL, skipping price calculation");
+
+                    if (processed % 1000 == 0)
+                        await Task.Yield();
+
                     continue;
                 }
 
@@ -762,10 +778,16 @@
                     Timestamp = s.Timestamp,
                     Price = priceUsd
                 });
+
+                // Yield control to UI every 1000 processed swaps
+                if (processed % 1000 == 0)
+                {
+                    await Task.Yield();
+                }
             }
 
             // 4 debug count swops
-            Console.WriteLine($"[Swaps] countInRange={countInRange}, pricePoints={pricePoints.Count}");
+            // Console.WriteLine($"[Swaps] countInRange={countInRange}, pricePoints={pricePoints.Count}");
 
             pool.CountSwaps = countInRange;
             pool.PriceHistory = pricePoints
@@ -788,6 +810,7 @@
         }
     }
 }
+
 
 
 
