@@ -649,9 +649,12 @@
         return;
     }
 
-    var fromDate = filters.SwapsFromDate; // date from filter (start of range)
+    var fromDate = filters.SwapsFromDate;
 
-    // 1) FIRST: show spinners in all visible rows
+    // 4 debug count swops
+    Console.WriteLine($"[Swaps] Global fromDate filter = {fromDate?.ToString("O") ?? "null"}");
+
+    // Start spinners for visible pools
     foreach (var pool in filteredPools)
     {
         pool.IsSwapsLoading = true;
@@ -661,13 +664,11 @@
     }
     StateHasChanged();
 
-    // 2) THEN: build wSOL-USD price history (special pool)
     await BuildWsolUsdPriceHistoryAsync(fromDate);
 
     var from = fromDate?.Date ?? DateTime.MinValue;
     var to = DateTime.UtcNow;
 
-    // 3) Now go through visible pools one by one, call API and fill cells
     foreach (var pool in filteredPools)
     {
         try
@@ -682,8 +683,97 @@
                 continue;
             }
 
-            // ... существующий код подсчёта countInRange, построения PriceHistory
-            // и вычисления pool.ArbitrationPriceUsd ...
+            var firstTokenAddress  = validatedToken?.TokenAddress ?? string.Empty;
+            var secondTokenAddress = pool.SecondTokenAddress;
+
+            // 4 debug count swops
+            Console.WriteLine($"[Swaps] Pool={pool.PoolAddress}");
+            Console.WriteLine($"[Swaps] firstTokenAddress={firstTokenAddress}");
+            Console.WriteLine($"[Swaps] secondTokenAddress={secondTokenAddress}");
+            Console.WriteLine($"[Swaps] total swaps from API = {swaps.Data.Count}");
+
+            var pricePoints = new List<SwapPricePoint>();
+            int countInRange = 0;
+
+            foreach (var s in swaps.Data)
+            {
+                if (s.Timestamp < from || s.Timestamp > to)
+                    continue;
+
+                countInRange++;
+
+                // 4 debug count swops
+                Console.WriteLine($"[Swaps] ts={s.Timestamp:O}, from={s.FromTokenAddress}, to={s.ToTokenAddress}");
+
+                decimal? priceFirstPerSecond = null;
+
+                // Case A: from = first, to = second
+                if (string.Equals(s.FromTokenAddress, firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(s.ToTokenAddress,   secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                    s.FromTokenAmount > 0)
+                {
+                    priceFirstPerSecond = s.ToTokenAmount / s.FromTokenAmount;
+                }
+                // Case B: from = second, to = first
+                else if (string.Equals(s.FromTokenAddress, secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(s.ToTokenAddress,   firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                         s.ToTokenAmount > 0)
+                {
+                    priceFirstPerSecond = s.FromTokenAmount / s.ToTokenAmount;
+                }
+
+                // 4 debug count swops
+                if (priceFirstPerSecond.HasValue)
+                {
+                    Console.WriteLine($"[Swaps] matched swap, priceFirstPerSecond={priceFirstPerSecond.Value}");
+                }
+                else
+                {
+                    Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
+                    continue;
+                }
+
+                decimal priceUsd;
+
+                if (string.Equals(secondTokenAddress, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) || // USDC
+                    string.Equals(secondTokenAddress, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", StringComparison.OrdinalIgnoreCase))   // USDT
+                {
+                    priceUsd = priceFirstPerSecond.Value;
+                }
+                else if (string.Equals(secondTokenAddress, "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase))
+                {
+                    var wsolUsd = GetClosestWsolUsdPrice(s.Timestamp);
+                    if (!wsolUsd.HasValue)
+                    {
+                        Console.WriteLine("[Swaps] no wSOL-USD price found for this timestamp, skipping");
+                        continue;
+                    }
+
+                    priceUsd = priceFirstPerSecond.Value * wsolUsd.Value;
+                }
+                else
+                {
+                    Console.WriteLine("[Swaps] second token is not USDC/USDT/wSOL, skipping price calculation");
+                    continue;
+                }
+
+                pricePoints.Add(new SwapPricePoint
+                {
+                    Timestamp = s.Timestamp,
+                    Price = priceUsd
+                });
+            }
+
+            // 4 debug count swops
+            Console.WriteLine($"[Swaps] countInRange={countInRange}, pricePoints={pricePoints.Count}");
+
+            pool.CountSwaps = countInRange;
+            pool.PriceHistory = pricePoints
+                .OrderBy(p => p.Timestamp)
+                .ToList();
+
+            var latest = pool.PriceHistory.OrderByDescending(p => p.Timestamp).FirstOrDefault();
+            pool.ArbitrationPriceUsd = latest?.Price ?? 0;
 
             pool.IsSwapsLoading = false;
             StateHasChanged();
@@ -698,6 +788,7 @@
         }
     }
 }
+
 
 
 private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
