@@ -2,7 +2,6 @@
 @using MudBlazor
 @using DexResearchArbitrage.Models
 
-
 <MudPaper Class="pa-4 mb-4">
     <MudText Typo="Typo.h6" Class="mb-3">Filters</MudText>
 
@@ -26,8 +25,10 @@
         <!-- Swaps From Date -->
         <MudItem xs="12" md="6" lg="2">
             <MudDatePicker Label="Swaps From Date"
-                           @bind-Date="Filters.SwapsFromDate"
+                           Date="Filters.SwapsFromDate"
+                           DateChanged="OnSwapsDateChanged"
                            Clearable="true"
+                           MinDate="@MinAllowedDate"
                            MaxDate="DateTime.Today"
                            Dense="true" />
         </MudItem>
@@ -43,7 +44,6 @@
                              Dense="true" />
         </MudItem>
 
-        
         <!-- Min Swaps -->
         <MudItem xs="12" md="6" lg="2">
             <MudNumericField T="int"
@@ -89,16 +89,57 @@
     [Parameter] public List<string> AvailableSecondTokens { get; set; } = new();
     [Parameter] public EventCallback OnFiltersChanged { get; set; }
 
+    [Inject] public IDialogService DialogService { get; set; } = default!;
+
     private IEnumerable<string> SelectedSecondTokens
     {
         get => Filters.SecondTokenAddresses;
         set => Filters.SecondTokenAddresses = value.ToList();
     }
 
-    private async Task ApplyFilters() => await OnFiltersChanged.InvokeAsync();
+    // Minimum allowed date = today - 3 days (demo restriction)
+    private DateTime MinAllowedDate => DateTime.UtcNow.Date.AddDays(-3);
+
+    private async Task OnSwapsDateChanged(DateTime? newValue)
+    {
+        if (!newValue.HasValue)
+        {
+            Filters.SwapsFromDate = null;
+            await NotifyChangeAsync();
+            return;
+        }
+
+        var selected = newValue.Value.Date;
+
+        if (selected < MinAllowedDate)
+        {
+            // Enforce demo restriction and show message
+            Filters.SwapsFromDate = MinAllowedDate;
+
+            await DialogService.ShowMessageBox(
+                "Demo limitation",
+                "The demo version allows setting a date no earlier than 3 days from the current date.",
+                yesText: "OK");
+
+            await NotifyChangeAsync();
+            return;
+        }
+
+        Filters.SwapsFromDate = selected;
+        await NotifyChangeAsync();
+    }
+
+    private async Task ApplyFilters() => await NotifyChangeAsync();
+
     private async Task ResetFilters()
     {
         Filters.Reset();
-        await OnFiltersChanged.InvokeAsync();
+        await NotifyChangeAsync();
+    }
+
+    private async Task NotifyChangeAsync()
+    {
+        if (OnFiltersChanged.HasDelegate)
+            await OnFiltersChanged.InvokeAsync();
     }
 }
