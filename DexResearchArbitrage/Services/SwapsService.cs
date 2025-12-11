@@ -34,9 +34,23 @@ public class SwapsService : ISwapsService
             Console.WriteLine($"[Swaps] Body: {body}");
 
             if (!response.IsSuccessStatusCode)
-                return null;
+    return null;
 
-            return JsonSerializer.Deserialize<PoolSwapsResponse>(body, JsonOptions);
+// Measure deserialization time
+var sw = System.Diagnostics.Stopwatch.StartNew();
+var result = JsonSerializer.Deserialize<PoolSwapsResponse>(body, JsonOptions);
+sw.Stop();
+
+if (result != null)
+{
+    Console.WriteLine($"[Swaps] Deserialization time: {sw.ElapsedMilliseconds} ms, items: {result.Data.Count}");
+}
+else
+{
+    Console.WriteLine("[Swaps] Deserialization returned null");
+}
+
+return result;
         }
         catch (Exception ex)
         {
