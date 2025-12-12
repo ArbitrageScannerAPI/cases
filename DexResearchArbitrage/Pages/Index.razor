@@ -628,7 +628,6 @@
 
     private async void OnRefreshSwapsClicked()
 {
-    // TVL condition: at least 1,000 USD
     if (filters.MinTvlUsd < 1000m)
     {
         await DialogService.ShowMessageBox(
@@ -651,10 +650,6 @@
 
     var fromDate = filters.SwapsFromDate;
 
-    // 4 debug count swops
-    // Console.WriteLine($"[Swaps] Global fromDate filter = {fromDate?.ToString("O") ?? "null"}");
-
-    // Start spinners for visible pools
     foreach (var pool in filteredPools)
     {
         pool.IsSwapsLoading = true;
@@ -686,11 +681,24 @@
             var firstTokenAddress  = validatedToken?.TokenAddress ?? string.Empty;
             var secondTokenAddress = pool.SecondTokenAddress;
 
-            // 4 debug count swops
-            //Console.WriteLine($"[Swaps] Pool={pool.PoolAddress}");
-            //Console.WriteLine($"[Swaps] firstTokenAddress={firstTokenAddress}");
-            //Console.WriteLine($"[Swaps] secondTokenAddress={secondTokenAddress}");
-            //Console.WriteLine($"[Swaps] total swaps from API = {swaps.Data.Count}");
+            int diffIndex = 0;
+            int minLen = Math.Min(firstTokenAddress.Length, secondTokenAddress.Length);
+            while (diffIndex < minLen &&
+                   firstTokenAddress[diffIndex] == secondTokenAddress[diffIndex])
+            {
+                diffIndex++;
+            }
+
+            int priceCalculationType = 0;
+            if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
+                secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+            {
+                priceCalculationType = 1;
+            }
+            else if (secondTokenAddress == "So11111111111111111111111111111111111111112")
+            {
+                priceCalculationType = 2;
+            }
 
             var pricePoints = new List<SwapPricePoint>();
             int countInRange = 0;
@@ -705,72 +713,38 @@
 
                 countInRange++;
 
-                // 4 debug count swops
-                //Console.WriteLine($"[Swaps] ts={s.Timestamp:O}, from={s.FromTokenAddress}, to={s.ToTokenAddress}");
+                if (priceCalculationType == 0) 
+                    continue;
 
                 decimal? priceFirstPerSecond = null;
 
-                // Case A: from = first, to = second
-                if (string.Equals(s.FromTokenAddress, firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(s.ToTokenAddress,   secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                    s.FromTokenAmount > 0)
+                bool fromIsFirst = s.FromTokenAddress[diffIndex] == firstTokenAddress[diffIndex];
+
+                if (fromIsFirst && s.FromTokenAmount > 0)
                 {
                     priceFirstPerSecond = s.ToTokenAmount / s.FromTokenAmount;
                 }
-                // Case B: from = second, to = first
-                else if (string.Equals(s.FromTokenAddress, secondTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                         string.Equals(s.ToTokenAddress,   firstTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                         s.ToTokenAmount > 0)
+                else if (!fromIsFirst && s.ToTokenAmount > 0)
                 {
                     priceFirstPerSecond = s.FromTokenAmount / s.ToTokenAmount;
                 }
 
-                // 4 debug count swops
-                if (priceFirstPerSecond.HasValue)
-                {
-                    Console.WriteLine($"[Swaps] matched swap, priceFirstPerSecond={priceFirstPerSecond.Value}");
-                }
-                else
-                {
-                    // Console.WriteLine("[Swaps] swap did not match token pair, skipping price calculation");
-
-                    // Yield to UI periodically even when price is not calculated
-                    if (processed % 200 == 0)
-                        await Task.Yield();
-
+                if (!priceFirstPerSecond.HasValue)
                     continue;
-                }
 
-                decimal priceUsd;
+                decimal priceUsd = 0;
 
-                if (string.Equals(secondTokenAddress, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) || // USDC
-                    string.Equals(secondTokenAddress, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", StringComparison.OrdinalIgnoreCase))   // USDT
+                if (priceCalculationType == 1)
                 {
                     priceUsd = priceFirstPerSecond.Value;
                 }
-                else if (string.Equals(secondTokenAddress, "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase))
+                else
                 {
                     var wsolUsd = GetClosestWsolUsdPrice(s.Timestamp);
                     if (!wsolUsd.HasValue)
-                    {
-                        Console.WriteLine("[Swaps] no wSOL-USD price found for this timestamp, skipping");
-
-                        if (processed % 200 == 0)
-                            await Task.Yield();
-
                         continue;
-                    }
 
                     priceUsd = priceFirstPerSecond.Value * wsolUsd.Value;
-                }
-                else
-                {
-                    //Console.WriteLine("[Swaps] second token is not USDC/USDT/wSOL, skipping price calculation");
-
-                    if (processed % 200 == 0)
-                        await Task.Yield();
-
-                    continue;
                 }
 
                 pricePoints.Add(new SwapPricePoint
@@ -778,23 +752,16 @@
                     Timestamp = s.Timestamp,
                     Price = priceUsd
                 });
-
-                // Yield control to UI every 1000 processed swaps
-                if (processed % 200 == 0)
-                {
-                    await Task.Yield();
-                }
             }
-
-            // 4 debug count swops
-            // Console.WriteLine($"[Swaps] countInRange={countInRange}, pricePoints={pricePoints.Count}");
 
             pool.CountSwaps = countInRange;
             pool.PriceHistory = pricePoints
                 .OrderBy(p => p.Timestamp)
                 .ToList();
 
-            var latest = pool.PriceHistory.OrderByDescending(p => p.Timestamp).FirstOrDefault();
+            var latest = pool.PriceHistory
+                .OrderByDescending(p => p.Timestamp)
+                .FirstOrDefault();
             pool.ArbitrationPriceUsd = latest?.Price ?? 0;
 
             pool.IsSwapsLoading = false;
@@ -802,17 +769,13 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Swaps] Error recalculating for pool {pool.PoolAddress}: {ex.Message}");
+            Console.WriteLine($"[Swaps] Error for {pool.PoolAddress}: {ex.Message}");
             pool.CountSwaps = 0;
-            pool.ArbitrationPriceUsd = 0;
             pool.IsSwapsLoading = false;
             StateHasChanged();
         }
     }
 }
-
-
-
 
 private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
 {
