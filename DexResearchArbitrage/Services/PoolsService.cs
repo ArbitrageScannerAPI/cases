@@ -80,12 +80,12 @@ namespace DexResearchArbitrage.Services
                         PoolAddress = p.PoolAddress,
                         SecondTokenAddress = second.TokenAddress,
                         SecondTokenSymbol = second.Symbol,
-                        // TVL, CountSwaps, PriceDiffPercent, ArbitrationFlag will be filled later
+                        // TVL, CountSwaps, PriceDiffPercent, LatestPriceFlag will be filled later
                         // when a richer pools / stats endpoint is integrated.
                         TvlUsd = 0,
                         CountSwaps = 0,
                         PriceDiffPercent = 0,
-                        ArbitrationFlag = false,
+                        LatestPriceFlag = false,
                         LastSwapTimestamp = p.CreatedAtTimestamp
                     });
                 }

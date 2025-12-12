@@ -81,15 +81,15 @@ namespace DexResearchArbitrage.Models
     public decimal TvlUsd { get; set; }
     public int CountSwaps { get; set; }
     public decimal PriceDiffPercent { get; set; }
-    public bool ArbitrationFlag { get; set; }
+    public bool LatestPriceFlag { get; set; }
     public DateTime? LastSwapTimestamp { get; set; }
 
     // Новый флаг — идёт ли пересчёт TVL по этому пулу
     public bool IsTvlLoading { get; set; }
     public bool IsSwapsLoading { get; set; }
 
-    // Latest USD price of the first token for this pool (used for Arbitration column)
-    public decimal ArbitrationPriceUsd { get; set; }
+    // Latest USD price of the first token for this pool (used for LatestPrice column)
+    public decimal LatestPricePriceUsd { get; set; }
 
     // Cached price history: first/second price per swap for this pool
     public List<SwapPricePoint> PriceHistory { get; set; } = new();

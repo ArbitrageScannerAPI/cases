@@ -85,13 +85,14 @@
         </MudAlert>
     }
     
-    <!-- Filters Section -->
+        <!-- Filters Section -->
     @if (selectedNetwork == Network.Solana && availableSecondTokens.Count > 0)
     {
         <PoolFilters Filters="@filters" 
                      AvailableSecondTokens="@availableSecondTokens"
-                     OnFiltersChanged="ApplyFilters" />
+                     OnFiltersChanged="OnFiltersChangedHandler" />
     }
+
     
     <!-- Pools Table -->
     @if (allPools.Count > 0)
@@ -136,8 +137,8 @@
                            Size="Size.Small"
                            Color="Color.Default"
                            Class="mr-1"
-                           OnClick="OnRefreshArbitrationClicked" />
-            Arbitration
+                           OnClick="OnRefreshLatestPriceClicked" />
+            LatestPrice
         </MudTh>
     </HeaderContent>
     <RowTemplate>
@@ -191,10 +192,10 @@
             }
          </MudTd>
 
-        <MudTd DataLabel="Arbitration">
-            @if (context.ArbitrationPriceUsd > 0)
+        <MudTd DataLabel="LatestPrice">
+            @if (context.LatestPricePriceUsd > 0)
             {
-                @context.ArbitrationPriceUsd.ToString("F6")
+                @context.LatestPricePriceUsd.ToString("F6")
             }
             else
             {
@@ -276,12 +277,34 @@
     {
     // set default filters Data
     
-    filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-3);
+    filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-2);
 
     // MinSwapCount default = 0
     filters.MinSwapCount = 0;
     }
 
+        private async Task OnFiltersChangedHandler()
+    {
+        // Validate date limit (Demo version restriction: max 2 days history)
+        if (filters.SwapsFromDate.HasValue)
+        {
+            var minAllowedDate = DateTime.UtcNow.Date.AddDays(-2);
+            
+            if (filters.SwapsFromDate.Value < minAllowedDate)
+            {
+                // Show warning dialog
+                var msg = $"Demo version allows filtering no later than {minAllowedDate:yyyy-MM-dd} (max 2 days ago).";
+                await DialogService.ShowMessageBox("Demo Limitation", msg, yesText: "OK");
+
+                // Reset to minimum allowed date
+                filters.SwapsFromDate = minAllowedDate;
+            }
+        }
+
+        // Apply filters normally
+        filteredPools = FilterPools(allPools, filters);
+        StateHasChanged();
+    }
 
     private void OnNetworkChanged(Network value)
     {
@@ -660,7 +683,7 @@
             if (swapsData == null)
             {
                 pool.CountSwaps = 0;
-                pool.ArbitrationPriceUsd = 0;
+                pool.LatestPricePriceUsd = 0;
                 return; // Finally block handles IsSwapsLoading
             }
 
@@ -668,7 +691,7 @@
             if (swapsData.Count == 0)
             {
                 pool.CountSwaps = 0;
-                pool.ArbitrationPriceUsd = 0;
+                pool.LatestPricePriceUsd = 0;
                 return;
             }
 
@@ -761,13 +784,13 @@
                 .OrderByDescending(p => p.Timestamp)
                 .FirstOrDefault();
             
-            pool.ArbitrationPriceUsd = latest?.Price ?? 0;
+            pool.LatestPricePriceUsd = latest?.Price ?? 0;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Swaps] Error: {ex.Message}");
             pool.CountSwaps = 0;
-            pool.ArbitrationPriceUsd = 0;
+            pool.LatestPricePriceUsd = 0;
         }
         finally
         {
@@ -798,7 +821,7 @@
         {
             pool.IsSwapsLoading = true;
             pool.CountSwaps = 0;
-            pool.ArbitrationPriceUsd = 0;
+            pool.LatestPricePriceUsd = 0;
             pool.PriceHistory.Clear();
         }
         StateHasChanged(); // Show spinners for everyone
@@ -830,7 +853,7 @@
         _wsolUsdPriceHistory.Clear();
 
         // Fetch swaps for the wSOL-USDC reference pool
-        var response = await SwapsService.GetPoolSwapsAsync(WsolUsdcPoolAddress, 10000);
+        var response = await SwapsService.GetPoolSwapsAsync(WsolUsdcPoolAddress, 3000);
         if (response == null || response.Data.Count == 0)
             return;
 
@@ -925,10 +948,10 @@
         return diffBefore <= diffAfter ? valBefore.Price : valAfter.Price;
     }
 
-    private void OnRefreshArbitrationClicked()
+    private void OnRefreshLatestPriceClicked()
     {
         // TODO: Implement arbitration flag / price diff refresh logic.
-        Console.WriteLine("Arbitration refresh clicked");
+        Console.WriteLine("LatestPrice refresh clicked");
     }
 
     private string SelectedRowStyleFunc(PoolInfo pool, int rowNumber)

@@ -17,7 +17,7 @@ public class SwapsService : ISwapsService
         _httpClient = httpClient;
     }
 
-    public async Task<PoolSwapsResponse?> GetPoolSwapsAsync(string poolAddress, int limit = 10000)
+    public async Task<PoolSwapsResponse?> GetPoolSwapsAsync(string poolAddress, int limit = 3000)
     {
         if (string.IsNullOrWhiteSpace(poolAddress))
             return null;

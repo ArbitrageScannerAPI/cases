@@ -97,8 +97,8 @@
         set => Filters.SecondTokenAddresses = value.ToList();
     }
 
-    // Minimum allowed date = today - 3 days (demo restriction)
-    private DateTime MinAllowedDate => DateTime.UtcNow.Date.AddDays(-3);
+    // Minimum allowed date = today - 2 days (demo restriction)
+    private DateTime MinAllowedDate => DateTime.UtcNow.Date.AddDays(-2);
 
     private async Task OnSwapsDateChanged(DateTime? newValue)
     {
