@@ -625,88 +625,9 @@
         }
     }
 
-
-    private async void OnRefreshSwapsClicked()
+        private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
     {
-        // 1. Validation checks
-        if (filters.MinTvlUsd < 1000m)
-        {
-            await DialogService.ShowMessageBox(
-                "Warning",
-                "To refresh Swaps Count, please set TVL filter to at least 1,000 USD.",
-                yesText: "OK");
-            Console.WriteLine("Swaps refresh blocked: MinTvlUsd < 1000.");
-            return;
-        }
-
-        if (filteredPools.Count == 0)
-        {
-            await DialogService.ShowMessageBox(
-                "Warning",
-                "There are no pools in the table to refresh swaps count.",
-                yesText: "OK");
-            Console.WriteLine("Swaps refresh blocked: filteredPools is empty.");
-            return;
-        }
-
-        var fromDate = filters.SwapsFromDate;
-
-        // 2. Reset UI state for all visible pools immediately
-        foreach (var pool in filteredPools)
-        {
-            pool.IsSwapsLoading = true;
-            pool.CountSwaps = 0;
-            pool.ArbitrationPriceUsd = 0;
-            pool.PriceHistory.Clear();
-        }
-        StateHasChanged(); // Show spinners for everyone
-
-        // 3. Pre-load wSOL price history once (needed for calculations)
-        await BuildWsolUsdPriceHistoryAsync(fromDate);
-
-        // 4. Parallel Execution with Ordered UI Updates
-        // We use SemaphoreSlim to limit network concurrency (e.g., max 5 requests at once).
-        using var semaphore = new SemaphoreSlim(5);
-
-        // Create a list of "hot" tasks. They start executing immediately upon creation.
-        // However, we do NOT await them here yet.
-        var runningTasks = filteredPools.Select(async pool =>
-        {
-            // Wait for our turn in the semaphore (throttling)
-            await semaphore.WaitAsync();
-            try
-            {
-                // Perform the heavy lifting (API call + calculations).
-                // This method updates the 'pool' object internally but DOES NOT trigger UI updates.
-                await ProcessPoolSwapsAsync(pool, fromDate);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        }).ToList(); // .ToList() forces the query to execute and tasks to start.
-
-        // 5. Sequential UI Update Loop
-        // We iterate through the tasks in the exact order of the table rows.
-        foreach (var task in runningTasks)
-        {
-            // Wait for the specific task to complete.
-            // If a later task (e.g., #5) finishes before #1, it will sit here and wait
-            // until we reach it in the loop. This guarantees sequential top-to-bottom rendering.
-            await task;
-
-            // Once the task for the current row is done, refresh the UI.
-            // Users will see rows unlocking one by one: 1 -> 2 -> 3...
-            StateHasChanged();
-        }
-
-        // Final refresh to ensure everything is consistent
-        StateHasChanged();
-    }
-
-                private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
-    {
-        // Local function to fetch data with retries using dynamic return type
+        // Local retry function
         async Task<dynamic?> FetchSwapsWithRetry()
         {
             const int MaxRetries = 3;
@@ -715,15 +636,11 @@
                 try
                 {
                     var res = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 10000);
-                    
-                    if (res != null && res.Data != null)
-                    {
-                        return res.Data; 
-                    }
+                    if (res != null && res.Data != null) return res.Data;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Attempt {i+1} failed for {pool.PoolAddress}: {ex.Message}");
+                    Console.WriteLine($"Retry {i+1} for {pool.PoolAddress}: {ex.Message}");
                     if (i == MaxRetries - 1) throw;
                     await Task.Delay(1000 * (i + 1));
                 }
@@ -736,32 +653,30 @@
             var from = fromDate?.Date ?? DateTime.MinValue;
             var to = DateTime.UtcNow;
 
+            // 1. Fetch Data
             dynamic? swapsData = await FetchSwapsWithRetry();
 
-            // Null check before accessing Count
+            // Check for null explicitly to avoid CS8602
             if (swapsData == null)
             {
                 pool.CountSwaps = 0;
                 pool.ArbitrationPriceUsd = 0;
-                pool.IsSwapsLoading = false;
-                return;
+                return; // Finally block handles IsSwapsLoading
             }
 
-            // Safe count check for dynamic list
-            // We use a try-catch block or explicit check if we knew the type,
-            // but for dynamic, simple property access is standard.
-            // To silence CS8602, we can rely on the null check above.
+            // Check for empty collection
             if (swapsData.Count == 0)
             {
                 pool.CountSwaps = 0;
                 pool.ArbitrationPriceUsd = 0;
-                pool.IsSwapsLoading = false;
                 return;
             }
 
+            // 2. Prepare for calculation
             var firstTokenAddress = validatedToken?.TokenAddress ?? string.Empty;
             var secondTokenAddress = pool.SecondTokenAddress;
             
+            // Optimization: Pre-calculate diff index
             int diffIndex = 0;
             int minLen = Math.Min(firstTokenAddress.Length, secondTokenAddress.Length);
             while (diffIndex < minLen &&
@@ -784,47 +699,40 @@
             var pricePoints = new List<SwapPricePoint>();
             int countInRange = 0;
 
+            // 3. Calculation Loop
             foreach (var s in swapsData)
             {
-                // Ensure s is not null (though unlikely in a list)
+                // Explicit null check for loop item
                 if (s == null) continue;
-
-                // Use explicit DateTime cast
+                
                 DateTime ts = s.Timestamp;
-
-                if (ts < from || ts > to)
-                    continue;
+                
+                // Filter by date
+                if (ts < from || ts > to) continue;
 
                 countInRange++;
 
-                if (priceCalculationType == 0)
-                    continue;
+                if (priceCalculationType == 0) continue;
 
                 decimal? priceFirstPerSecond = null;
+                string? sFrom = s.FromTokenAddress;
                 
-                string? sFrom = s.FromTokenAddress; 
-                // Null check for address string
                 if (string.IsNullOrEmpty(sFrom)) continue;
 
+                // Fast comparison
                 bool fromIsFirst = sFrom[diffIndex] == firstTokenAddress[diffIndex];
-
+                
                 decimal sFromAmt = s.FromTokenAmount;
                 decimal sToAmt = s.ToTokenAmount;
 
                 if (fromIsFirst && sFromAmt > 0)
-                {
                     priceFirstPerSecond = sToAmt / sFromAmt;
-                }
                 else if (!fromIsFirst && sToAmt > 0)
-                {
                     priceFirstPerSecond = sFromAmt / sToAmt;
-                }
 
-                if (!priceFirstPerSecond.HasValue)
-                    continue;
+                if (!priceFirstPerSecond.HasValue) continue;
 
                 decimal priceUsd = 0;
-
                 if (priceCalculationType == 1)
                 {
                     priceUsd = priceFirstPerSecond.Value;
@@ -832,10 +740,7 @@
                 else
                 {
                     var wsolUsd = GetClosestWsolUsdPrice(ts);
-                    
-                    if (!wsolUsd.HasValue)
-                        continue;
-
+                    if (!wsolUsd.HasValue) continue;
                     priceUsd = priceFirstPerSecond.Value * wsolUsd.Value;
                 }
 
@@ -846,6 +751,7 @@
                 });
             }
 
+            // 4. Save results
             pool.CountSwaps = countInRange;
             pool.PriceHistory = pricePoints
                 .OrderBy(p => p.Timestamp)
@@ -854,11 +760,12 @@
             var latest = pool.PriceHistory
                 .OrderByDescending(p => p.Timestamp)
                 .FirstOrDefault();
+            
             pool.ArbitrationPriceUsd = latest?.Price ?? 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Swaps] Final error for {pool.PoolAddress}: {ex.Message}");
+            Console.WriteLine($"[Swaps] Error: {ex.Message}");
             pool.CountSwaps = 0;
             pool.ArbitrationPriceUsd = 0;
         }
@@ -867,6 +774,54 @@
             pool.IsSwapsLoading = false;
         }
     }
+
+
+
+        private async void OnRefreshSwapsClicked()
+    {
+        // 1. Validation
+        if (filters.MinTvlUsd < 1000m)
+        {
+            await DialogService.ShowMessageBox(
+                "Warning",
+                "To refresh Swaps Count, please set TVL filter to at least 1,000 USD.",
+                yesText: "OK");
+            return;
+        }
+
+        if (filteredPools.Count == 0) return;
+
+        var fromDate = filters.SwapsFromDate;
+
+        // 2. Reset UI state for all visible pools immediately
+        foreach (var pool in filteredPools)
+        {
+            pool.IsSwapsLoading = true;
+            pool.CountSwaps = 0;
+            pool.ArbitrationPriceUsd = 0;
+            pool.PriceHistory.Clear();
+        }
+        StateHasChanged(); // Show spinners for everyone
+
+        // 3. Pre-load wSOL price history once
+        await BuildWsolUsdPriceHistoryAsync(fromDate);
+
+        // 4. Sequential Execution Loop
+        // We process pools one by one to avoid any race conditions or UI glitches.
+        foreach (var pool in filteredPools)
+        {
+            // Process the current pool fully (Download -> Parse -> Calculate)
+            await ProcessPoolSwapsAsync(pool, fromDate);
+
+            // Update UI immediately after this pool is done.
+            // This creates a smooth "row by row" unlocking effect.
+            StateHasChanged();
+
+            // Tiny yield to keep the browser responsive between rows
+            await Task.Delay(1);
+        }
+    }
+
 
 
     private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
