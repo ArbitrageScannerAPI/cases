@@ -685,14 +685,15 @@
     await Task.WhenAll(tasks);
 }
 
-private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
+private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate) // Убедись, что тип PoolInfo или PoolData правильный
 {
     try
     {
+        // 1. Все переменные объявляем ВНУТРИ метода. Никаких глобальных полей!
         var from = fromDate?.Date ?? DateTime.MinValue;
         var to = DateTime.UtcNow;
 
-        // Fetch swaps from API
+        // Загружаем свопы
         var swaps = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 10000);
 
         if (swaps == null || swaps.Data.Count == 0)
@@ -700,13 +701,16 @@ private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
             pool.CountSwaps = 0;
             pool.ArbitrationPriceUsd = 0;
             pool.IsSwapsLoading = false;
+            // Безопасное обновление UI
+            await InvokeAsync(StateHasChanged);
             return;
         }
 
+        // Локальные переменные для адресов
         var firstTokenAddress = validatedToken?.TokenAddress ?? string.Empty;
         var secondTokenAddress = pool.SecondTokenAddress;
 
-        // 1. Optimize token address comparison (find the first different char index)
+        // Локальный расчет индекса отличия
         int diffIndex = 0;
         int minLen = Math.Min(firstTokenAddress.Length, secondTokenAddress.Length);
         while (diffIndex < minLen &&
@@ -715,50 +719,44 @@ private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
             diffIndex++;
         }
 
-        // 2. Pre-determine price calculation strategy based on the second token type
-        // 0 = skip (unknown), 1 = stable (USDC/USDT), 2 = wSOL
+        // Локальный тип расчета
         int priceCalculationType = 0;
-        if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || // USDC
-            secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")   // USDT
+        if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
+            secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
         {
             priceCalculationType = 1;
         }
-        else if (secondTokenAddress == "So11111111111111111111111111111111111111112") // wSOL
+        else if (secondTokenAddress == "So11111111111111111111111111111111111111112")
         {
             priceCalculationType = 2;
         }
 
+        // Локальный список точек
         var pricePoints = new List<SwapPricePoint>();
         int countInRange = 0;
-        int processed = 0;
 
         foreach (var s in swaps.Data)
         {
-            processed++;
-
             if (s.Timestamp < from || s.Timestamp > to)
                 continue;
 
             countInRange++;
 
-            // If token type is unknown/unsupported, we count the swap but skip price calc
             if (priceCalculationType == 0)
                 continue;
 
             decimal? priceFirstPerSecond = null;
 
-            // Single char comparison determines if from == firstToken
-            // (assuming valid addresses from API)
+            // Важно: s - это переменная цикла, она безопасна.
+            // diffIndex и firstTokenAddress - локальные, безопасны.
             bool fromIsFirst = s.FromTokenAddress[diffIndex] == firstTokenAddress[diffIndex];
 
             if (fromIsFirst && s.FromTokenAmount > 0)
             {
-                // case: from = first, to = second -> price = to / from
                 priceFirstPerSecond = s.ToTokenAmount / s.FromTokenAmount;
             }
             else if (!fromIsFirst && s.ToTokenAmount > 0)
             {
-                // case: from = second, to = first -> price = from / to
                 priceFirstPerSecond = s.FromTokenAmount / s.ToTokenAmount;
             }
 
@@ -767,12 +765,15 @@ private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
 
             decimal priceUsd = 0;
 
-            if (priceCalculationType == 1) // Stable
+            if (priceCalculationType == 1)
             {
                 priceUsd = priceFirstPerSecond.Value;
             }
-            else // wSOL
+            else
             {
+                // GetClosestWsolUsdPrice должен быть потокобезопасным!
+                // Если он читает общий Dictionary без блокировки - это ок (чтение).
+                // Если пишет - возможны проблемы. Обычно чтение истории цен безопасно.
                 var wsolUsd = GetClosestWsolUsdPrice(s.Timestamp);
                 if (!wsolUsd.HasValue)
                     continue;
@@ -787,6 +788,7 @@ private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
             });
         }
 
+        
         pool.CountSwaps = countInRange;
         pool.PriceHistory = pricePoints
             .OrderBy(p => p.Timestamp)
@@ -806,13 +808,17 @@ private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
     finally
     {
         pool.IsSwapsLoading = false;
+        // renev UI from InvokeAsync
+        await InvokeAsync(StateHasChanged);
     }
 }
 
 private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
 {
+    // Clear previous history
     _wsolUsdPriceHistory.Clear();
 
+    // Fetch swaps for the wSOL-USDC reference pool
     var response = await SwapsService.GetPoolSwapsAsync(WsolUsdcPoolAddress, 10000);
     if (response == null || response.Data.Count == 0)
         return;
@@ -820,26 +826,30 @@ private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
     var from = fromDate?.Date ?? DateTime.MinValue;
     var to = DateTime.UtcNow;
 
+    const string WsolAddress = "So11111111111111111111111111111111111111112";
+    const string UsdcAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+    // Use a temporary list with initial capacity to minimize allocations
+    var tempHistory = new List<SwapPricePoint>(response.Data.Count);
+
     foreach (var s in response.Data)
     {
         if (s.Timestamp < from || s.Timestamp > to)
             continue;
 
-        // In this special pool we know it is wSOL-USDC.
-        // Price of wSOL in USD = amount_USDC / amount_wSOL.
-
         decimal? price = null;
 
-        // Case 1: from = wSOL, to = USDC
-        if (string.Equals(s.FromTokenAddress, "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(s.ToTokenAddress,  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) &&
+        // Calculate wSOL price in USD based on swap direction
+        // Case 1: Selling wSOL for USDC -> Price = USDC amount / wSOL amount
+        if (string.Equals(s.FromTokenAddress, WsolAddress, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(s.ToTokenAddress, UsdcAddress, StringComparison.OrdinalIgnoreCase) &&
             s.FromTokenAmount > 0)
         {
             price = s.ToTokenAmount / s.FromTokenAmount;
         }
-        // Case 2: from = USDC, to = wSOL
-        else if (string.Equals(s.FromTokenAddress, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", StringComparison.OrdinalIgnoreCase) &&
-                 string.Equals(s.ToTokenAddress,   "So11111111111111111111111111111111111111112", StringComparison.OrdinalIgnoreCase) &&
+        // Case 2: Buying wSOL with USDC -> Price = USDC amount / wSOL amount
+        else if (string.Equals(s.FromTokenAddress, UsdcAddress, StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(s.ToTokenAddress, WsolAddress, StringComparison.OrdinalIgnoreCase) &&
                  s.ToTokenAmount > 0)
         {
             price = s.FromTokenAmount / s.ToTokenAmount;
@@ -847,7 +857,7 @@ private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
 
         if (price.HasValue)
         {
-            _wsolUsdPriceHistory.Add(new SwapPricePoint
+            tempHistory.Add(new SwapPricePoint
             {
                 Timestamp = s.Timestamp,
                 Price = price.Value
@@ -855,32 +865,64 @@ private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
         }
     }
 
-    _wsolUsdPriceHistory = _wsolUsdPriceHistory
+    // CRITICAL: Sort by timestamp to enable Binary Search later
+    _wsolUsdPriceHistory = tempHistory
         .OrderBy(x => x.Timestamp)
         .ToList();
 }
 
+
 private decimal? GetClosestWsolUsdPrice(DateTime timestamp)
 {
-    if (_wsolUsdPriceHistory.Count == 0)
+    // Если список пуст
+    if (_wsolUsdPriceHistory == null || _wsolUsdPriceHistory.Count == 0)
         return null;
 
-    // Find point with minimal |t - timestamp|
-    SwapPricePoint? best = null;
-    var bestDiff = TimeSpan.MaxValue;
+    // Используем BinarySearch для мгновенного поиска
+    // Т.к. SwapPricePoint - это сложный объект, напишем ручной бинарный поиск
+    // или воспользуемся List.BinarySearch с IComparer, но проще руками.
 
-    foreach (var p in _wsolUsdPriceHistory)
+    int left = 0;
+    int right = _wsolUsdPriceHistory.Count - 1;
+    
+    // Если время выпадает за границы диапазона - берем крайние точки
+    if (timestamp <= _wsolUsdPriceHistory[left].Timestamp) return _wsolUsdPriceHistory[left].Price;
+    if (timestamp >= _wsolUsdPriceHistory[right].Timestamp) return _wsolUsdPriceHistory[right].Price;
+
+    // Классический бинарный поиск
+    while (left <= right)
     {
-        var diff = (p.Timestamp - timestamp).Duration();
-        if (diff < bestDiff)
-        {
-            bestDiff = diff;
-            best = p;
-        }
+        int mid = left + (right - left) / 2;
+        var midVal = _wsolUsdPriceHistory[mid];
+
+        if (midVal.Timestamp == timestamp)
+            return midVal.Price;
+
+        if (midVal.Timestamp < timestamp)
+            left = mid + 1;
+        else
+            right = mid - 1;
     }
 
-    return best?.Price;
+    // После цикла left и right указывают на ближайших соседей.
+    // timestamp находится между _wsolUsdPriceHistory[right] и _wsolUsdPriceHistory[left]
+    // (потому что left перескочил right)
+    
+    // Проверяем границы, чтобы не вылететь (на всякий случай)
+    if (right < 0) right = 0;
+    if (left >= _wsolUsdPriceHistory.Count) left = _wsolUsdPriceHistory.Count - 1;
+
+    var valBefore = _wsolUsdPriceHistory[right];
+    var valAfter = _wsolUsdPriceHistory[left];
+
+    // Считаем разницу во времени
+    var diffBefore = (timestamp - valBefore.Timestamp).Duration();
+    var diffAfter = (valAfter.Timestamp - timestamp).Duration();
+
+    // Возвращаем цену того, кто ближе
+    return diffBefore <= diffAfter ? valBefore.Price : valAfter.Price;
 }
+
 
 
     private void OnRefreshArbitrationClicked()
