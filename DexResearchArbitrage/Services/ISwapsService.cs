@@ -4,6 +4,7 @@ namespace DexResearchArbitrage.Services
 {
     public interface ISwapsService
     {
-        Task<PoolSwapsResponse?> GetPoolSwapsAsync(string poolAddress, int limit = 3000);
+        // Added Network
+        Task<PoolSwapsResponse?> GetPoolSwapsAsync(Network network, string poolAddress, int limit = 3000);
     }
 }

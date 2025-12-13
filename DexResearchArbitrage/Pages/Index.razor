@@ -225,9 +225,11 @@
     // State
     // Special pool for wSOL-USDC price
     private const string WsolUsdcPoolAddress = "21gTfxAnhUDjJGZJDkTXctGFKT8TeiXx6pN1CEg9K1uW";
+    private const string WethUsdtPoolAddress = "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36";
 
-    // Cached wSOL price in USD per swap
-    private List<SwapPricePoint> _wsolUsdPriceHistory = new();
+
+    // Cached wSOL or wETH price in USD per swap
+    private List<SwapPricePoint> _baseTokenUsdPriceHistory = new();
 
     private Network selectedNetwork = Network.None;
     private string tokenAddress = string.Empty;
@@ -687,7 +689,7 @@
     }
 
 
-    private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
+        private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
     {
         // Local retry function
         async Task<dynamic?> FetchSwapsWithRetry()
@@ -697,7 +699,8 @@
             {
                 try
                 {
-                    var res = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 3000);
+                    // Pass selectedNetwork as the first argument
+                    var res = await SwapsService.GetPoolSwapsAsync(selectedNetwork, pool.PoolAddress, 3000);
                     if (res != null && res.Data != null) return res.Data;
                 }
                 catch (Exception ex)
@@ -747,15 +750,36 @@
                 diffIndex++;
             }
             
-            int priceCalculationType = 0;
-            if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
-                secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+            // Determine price calculation strategy based on the secondary token
+            int priceCalculationType = 0; // 0 = Unknown/No calc, 1 = Direct USD, 2 = Via Base Token (wSOL/wETH)
+
+            if (selectedNetwork == Network.Solana)
             {
-                priceCalculationType = 1; 
+                // USDC or USDT
+                if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
+                    secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+                {
+                    priceCalculationType = 1; 
+                }
+                // wSOL
+                else if (secondTokenAddress == "So11111111111111111111111111111111111111112")
+                {
+                    priceCalculationType = 2; 
+                }
             }
-            else if (secondTokenAddress == "So11111111111111111111111111111111111111112")
+            else if (selectedNetwork == Network.Ethereum)
             {
-                priceCalculationType = 2; 
+                // USDT or USDC (Ethereum addresses)
+                if (string.Equals(secondTokenAddress, "0xdAC17F958D2ee523a2206206994597C13D831ec7", StringComparison.OrdinalIgnoreCase) || 
+                    string.Equals(secondTokenAddress, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", StringComparison.OrdinalIgnoreCase))
+                {
+                    priceCalculationType = 1;
+                }
+                // wETH
+                else if (string.Equals(secondTokenAddress, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", StringComparison.OrdinalIgnoreCase))
+                {
+                    priceCalculationType = 2;
+                }
             }
 
             var pricePoints = new List<SwapPricePoint>();
@@ -782,7 +806,8 @@
                 if (string.IsNullOrEmpty(sFrom)) continue;
 
                 // Fast comparison
-                bool fromIsFirst = sFrom[diffIndex] == firstTokenAddress[diffIndex];
+                bool fromIsFirst = sFrom.Length > diffIndex && firstTokenAddress.Length > diffIndex && 
+                                   sFrom[diffIndex] == firstTokenAddress[diffIndex];
                 
                 decimal sFromAmt = s.FromTokenAmount;
                 decimal sToAmt = s.ToTokenAmount;
@@ -797,13 +822,18 @@
                 decimal priceUsd = 0;
                 if (priceCalculationType == 1)
                 {
+                    // Direct USD pair
                     priceUsd = priceFirstPerSecond.Value;
                 }
                 else
                 {
-                    var wsolUsd = GetClosestWsolUsdPrice(ts);
-                    if (!wsolUsd.HasValue) continue;
-                    priceUsd = priceFirstPerSecond.Value * wsolUsd.Value;
+                    // Pair via Base Token (wSOL or wETH)
+                    // Ensure you have renamed GetClosestWsolUsdPrice to GetClosestBaseTokenPrice 
+                    // or use the old name if you kept it.
+                    var baseTokenUsd = GetClosestBaseTokenPrice(ts); 
+                    
+                    if (!baseTokenUsd.HasValue) continue;
+                    priceUsd = priceFirstPerSecond.Value * baseTokenUsd.Value;
                 }
 
                 pricePoints.Add(new SwapPricePoint
@@ -837,6 +867,7 @@
         }
     }
 
+
     private async void OnRefreshSwapsClicked()
     {
         // 1. Validation
@@ -864,7 +895,8 @@
         StateHasChanged(); // Show spinners for everyone
 
         // 3. Pre-load wSOL price history once
-        await BuildWsolUsdPriceHistoryAsync(fromDate);
+        await BuildBaseTokenPriceHistoryAsync(fromDate);
+
 
         // 4. Sequential Execution Loop
         // We process pools one by one to avoid any race conditions or UI glitches.
@@ -882,21 +914,39 @@
         }
     }
 
-    private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
+        private async Task BuildBaseTokenPriceHistoryAsync(DateTime? fromDate)
     {
         // Clear previous history
-        _wsolUsdPriceHistory.Clear();
+        _baseTokenUsdPriceHistory.Clear();
 
-        // Fetch swaps for the wSOL-USDC reference pool
-        var response = await SwapsService.GetPoolSwapsAsync(WsolUsdcPoolAddress, 3000);
+        string referencePoolAddress;
+        string baseTokenAddress;
+        string usdTokenAddress;
+
+        if (selectedNetwork == Network.Solana)
+        {
+            referencePoolAddress = WsolUsdcPoolAddress;
+            baseTokenAddress = "So11111111111111111111111111111111111111112"; // wSOL
+            usdTokenAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";  // USDC
+        }
+        else if (selectedNetwork == Network.Ethereum)
+        {
+            referencePoolAddress = WethUsdtPoolAddress;
+            baseTokenAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // wETH
+            usdTokenAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7";  // USDT
+        }
+        else
+        {
+            return;
+        }
+
+        // Fetch swaps for the reference pool using the selected network
+        var response = await SwapsService.GetPoolSwapsAsync(selectedNetwork, referencePoolAddress, 3000);
         if (response == null || response.Data.Count == 0)
             return;
 
         var from = fromDate?.Date ?? DateTime.MinValue;
         var to = DateTime.UtcNow;
-
-        const string WsolAddress = "So11111111111111111111111111111111111111112";
-        const string UsdcAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
         // Use a temporary list with initial capacity to minimize allocations
         var tempHistory = new List<SwapPricePoint>(response.Data.Count);
@@ -908,17 +958,17 @@
 
             decimal? price = null;
 
-            // Calculate wSOL price in USD based on swap direction
-            // Case 1: Selling wSOL for USDC -> Price = USDC amount / wSOL amount
-            if (string.Equals(s.FromTokenAddress, WsolAddress, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(s.ToTokenAddress, UsdcAddress, StringComparison.OrdinalIgnoreCase) &&
+            // Calculate Base Token price in USD based on swap direction
+            // Case 1: Selling Base (wSOL/wETH) for USD -> Price = USD amount / Base amount
+            if (string.Equals(s.FromTokenAddress, baseTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(s.ToTokenAddress, usdTokenAddress, StringComparison.OrdinalIgnoreCase) &&
                 s.FromTokenAmount > 0)
             {
                 price = s.ToTokenAmount / s.FromTokenAmount;
             }
-            // Case 2: Buying wSOL with USDC -> Price = USDC amount / wSOL amount
-            else if (string.Equals(s.FromTokenAddress, UsdcAddress, StringComparison.OrdinalIgnoreCase) &&
-                     string.Equals(s.ToTokenAddress, WsolAddress, StringComparison.OrdinalIgnoreCase) &&
+            // Case 2: Buying Base (wSOL/wETH) with USD -> Price = USD amount / Base amount
+            else if (string.Equals(s.FromTokenAddress, usdTokenAddress, StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(s.ToTokenAddress, baseTokenAddress, StringComparison.OrdinalIgnoreCase) &&
                      s.ToTokenAmount > 0)
             {
                 price = s.FromTokenAmount / s.ToTokenAmount;
@@ -935,30 +985,31 @@
         }
 
         // CRITICAL: Sort by timestamp to enable Binary Search later
-        _wsolUsdPriceHistory = tempHistory
+        _baseTokenUsdPriceHistory = tempHistory
             .OrderBy(x => x.Timestamp)
             .ToList();
     }
 
-    private decimal? GetClosestWsolUsdPrice(DateTime timestamp)
+
+        private decimal? GetClosestBaseTokenPrice(DateTime timestamp)
     {
         // If list is empty
-        if (_wsolUsdPriceHistory == null || _wsolUsdPriceHistory.Count == 0)
+        if (_baseTokenUsdPriceHistory == null || _baseTokenUsdPriceHistory.Count == 0)
             return null;
 
         // Use BinarySearch for instant lookup
         int left = 0;
-        int right = _wsolUsdPriceHistory.Count - 1;
+        int right = _baseTokenUsdPriceHistory.Count - 1;
         
         // Boundary checks
-        if (timestamp <= _wsolUsdPriceHistory[left].Timestamp) return _wsolUsdPriceHistory[left].Price;
-        if (timestamp >= _wsolUsdPriceHistory[right].Timestamp) return _wsolUsdPriceHistory[right].Price;
+        if (timestamp <= _baseTokenUsdPriceHistory[left].Timestamp) return _baseTokenUsdPriceHistory[left].Price;
+        if (timestamp >= _baseTokenUsdPriceHistory[right].Timestamp) return _baseTokenUsdPriceHistory[right].Price;
 
         // Classic Binary Search
         while (left <= right)
         {
             int mid = left + (right - left) / 2;
-            var midVal = _wsolUsdPriceHistory[mid];
+            var midVal = _baseTokenUsdPriceHistory[mid];
 
             if (midVal.Timestamp == timestamp)
                 return midVal.Price;
@@ -971,10 +1022,10 @@
 
         // After loop, left and right point to closest neighbors.
         if (right < 0) right = 0;
-        if (left >= _wsolUsdPriceHistory.Count) left = _wsolUsdPriceHistory.Count - 1;
+        if (left >= _baseTokenUsdPriceHistory.Count) left = _baseTokenUsdPriceHistory.Count - 1;
 
-        var valBefore = _wsolUsdPriceHistory[right];
-        var valAfter = _wsolUsdPriceHistory[left];
+        var valBefore = _baseTokenUsdPriceHistory[right];
+        var valAfter = _baseTokenUsdPriceHistory[left];
 
         var diffBefore = (timestamp - valBefore.Timestamp).Duration();
         var diffAfter = (valAfter.Timestamp - timestamp).Duration();
@@ -982,6 +1033,7 @@
         // Return price of the closer neighbor
         return diffBefore <= diffAfter ? valBefore.Price : valAfter.Price;
     }
+
 
     private void OnRefreshLatestPriceClicked()
     {
