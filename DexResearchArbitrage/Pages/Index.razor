@@ -812,9 +812,9 @@
                 decimal sFromAmt = s.FromTokenAmount;
                 decimal sToAmt = s.ToTokenAmount;
 
-                if (fromIsFirst && sFromAmt > 0)
+                if (fromIsFirst && sFromAmt != 0)
                     priceFirstPerSecond = sToAmt / sFromAmt;
-                else if (!fromIsFirst && sToAmt > 0)
+                else if (!fromIsFirst && sToAmt != 0)
                     priceFirstPerSecond = sFromAmt / sToAmt;
 
                 if (!priceFirstPerSecond.HasValue) continue;
@@ -962,14 +962,14 @@
             // Case 1: Selling Base (wSOL/wETH) for USD -> Price = USD amount / Base amount
             if (string.Equals(s.FromTokenAddress, baseTokenAddress, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(s.ToTokenAddress, usdTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                s.FromTokenAmount > 0)
+                s.FromTokenAmount != 0)
             {
                 price = s.ToTokenAmount / s.FromTokenAmount;
             }
             // Case 2: Buying Base (wSOL/wETH) with USD -> Price = USD amount / Base amount
             else if (string.Equals(s.FromTokenAddress, usdTokenAddress, StringComparison.OrdinalIgnoreCase) &&
                      string.Equals(s.ToTokenAddress, baseTokenAddress, StringComparison.OrdinalIgnoreCase) &&
-                     s.ToTokenAmount > 0)
+                     s.ToTokenAmount != 0)
             {
                 price = s.FromTokenAmount / s.ToTokenAmount;
             }
