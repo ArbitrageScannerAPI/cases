@@ -32,13 +32,7 @@
                        AnchorOrigin="Origin.BottomCenter">
                 <MudSelectItem Value="Network.None" Disabled="true">-- Select Network --</MudSelectItem>
                 <MudSelectItem Value="Network.Solana">Solana</MudSelectItem>
-
-                @* Ethereum is temporarily disabled.
-                   To enable it again, remove Disabled="true" and the Style
-                   or bind Disabled to a configuration flag. *@
-                <MudSelectItem Value="Network.Ethereum">
-                    Ethereum
-                </MudSelectItem>
+                <MudSelectItem Value="Network.Ethereum">Ethereum</MudSelectItem>
             </MudSelect>
         </MudItem>
         
@@ -83,14 +77,13 @@
         </MudAlert>
     }
     
-        <!-- Filters Section -->
-    @if (selectedNetwork == Network.Solana && availableSecondTokens.Count > 0)
+    <!-- Filters Section -->
+    @if (selectedNetwork != Network.None)
     {
         <PoolFilters Filters="@filters" 
                      AvailableSecondTokens="@availableSecondTokens"
                      OnFiltersChanged="OnFiltersChangedHandler" />
     }
-
     
     <!-- Pools Table -->
     @if (allPools.Count > 0)
@@ -228,7 +221,6 @@
     }
 </MudPaper>
 
-
 @code {
     // State
     // Special pool for wSOL-USDC price
@@ -246,7 +238,6 @@
     private List<PoolInfo> filteredPools = new();
     private PoolInfo? selectedPool;
     
-
     // Filters
     private PoolFiltersModel filters = new();
     private List<string> availableSecondTokens = new();
@@ -266,6 +257,15 @@
             { "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC" }
         };
 
+    // Predefined Ethereum secondary tokens for filters
+    private readonly Dictionary<string, string> _predefinedEthereumSecondTokens =
+        new()
+        {
+            { "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "wETH" },
+            { "0xdAC17F958D2ee523a2206206994597C13D831ec7", "USDT" },
+            { "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "USDC" }
+        };    
+
     protected override void OnInitialized()
     {
         SetDefaultFilters();
@@ -273,15 +273,14 @@
 
    private void SetDefaultFilters()
     {
-    // set default filters Data
-    
-    filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-2);
+        // Set default filters Data
+        filters.SwapsFromDate = DateTime.UtcNow.Date.AddDays(-2);
 
-    // MinSwapCount default = 0
-    filters.MinSwapCount = 0;
+        // MinSwapCount default = 0
+        filters.MinSwapCount = 0;
     }
 
-        private async Task OnFiltersChangedHandler()
+    private async Task OnFiltersChangedHandler()
     {
         // Validate date limit (Demo version restriction: max 2 days history)
         if (filters.SwapsFromDate.HasValue)
@@ -337,6 +336,16 @@
                 availableSecondTokens.Add(display);
             }
         }
+        else if (selectedNetwork == Network.Ethereum)
+        {
+             foreach (var kvp in _predefinedEthereumSecondTokens)
+            {
+                var addr = kvp.Key;
+                var symbol = kvp.Value;
+                var display = $"{symbol} ({TruncateAddress(addr)})";
+                availableSecondTokens.Add(display);
+            }
+        }
         else
         {
             // For other networks we currently do not define predefined tokens.
@@ -352,19 +361,18 @@
 
     private async Task CopyPoolAddressAsync(string address)
     {
-    try
-    {
-        var ok = await JSRuntime.InvokeAsync<bool>("copyToClipboard", address);
-        Console.WriteLine(ok
-            ? $"Pool address copied: {address}"
-            : "Clipboard copy returned false");
+        try
+        {
+            var ok = await JSRuntime.InvokeAsync<bool>("copyToClipboard", address);
+            Console.WriteLine(ok
+                ? $"Pool address copied: {address}"
+                : "Clipboard copy returned false");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Clipboard copy error: {ex.Message}");
+        }
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Clipboard copy error: {ex.Message}");
-    }
-    }
-
 
     private async Task ValidateAndLoadPools()
     {
@@ -421,7 +429,7 @@
         {
             allPools = await PoolsService.GetPoolsByTokenAsync(selectedNetwork, tokenAddress.Trim());
 
-            // availableSecondTokens already prepared by UpdateAvailableSecondTokens (for Solana).
+            // availableSecondTokens already prepared by UpdateAvailableSecondTokens (for Solana and Ethereum).
             ApplyFilters();
         }
         catch (Exception ex)
@@ -448,21 +456,35 @@
     {
         var result = pools.AsEnumerable();
 
-        // Filter by predefined second tokens (wSOL, USDT, USDC for Solana).
-        if (filterModel.SecondTokenAddresses.Count > 0 && selectedNetwork == Network.Solana)
+        // Filter by predefined second tokens (wSOL/USDT/USDC for Solana, wETH/USDT/USDC for Ethereum).
+        if (filterModel.SecondTokenAddresses.Count > 0)
         {
             var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var selected in filterModel.SecondTokenAddresses)
             {
-                foreach (var kvp in _predefinedSolanaSecondTokens)
+                if (selectedNetwork == Network.Solana)
                 {
-                    var addr = kvp.Key;
-                    var symbol = kvp.Value;
-
-                    if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
+                    foreach (var kvp in _predefinedSolanaSecondTokens)
                     {
-                        selectedAddresses.Add(addr);
+                        var addr = kvp.Key;
+                        var symbol = kvp.Value;
+                        if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedAddresses.Add(addr);
+                        }
+                    }
+                }
+                else if (selectedNetwork == Network.Ethereum)
+                {
+                    foreach (var kvp in _predefinedEthereumSecondTokens)
+                    {
+                        var addr = kvp.Key;
+                        var symbol = kvp.Value;
+                        if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedAddresses.Add(addr);
+                        }
                     }
                 }
             }
@@ -492,7 +514,6 @@
         //         p.LastSwapTimestamp.HasValue &&
         //         p.LastSwapTimestamp.Value >= filterModel.SwapsFromDate.Value);
         // }
-
 
         // Filter by price difference percentage
         if (filterModel.MinPriceDiffPercent > 0)
@@ -545,8 +566,12 @@
 
     private async void OnRefreshTvlClicked()
     {
+        // For now, TVL refresh is only implemented for Solana
         if (selectedNetwork != Network.Solana)
+        {
+            await DialogService.ShowMessageBox("Not Implemented", "TVL refresh is currently only supported for Solana.", yesText: "OK");
             return;
+        }
 
         filters.MinTvlUsd = 0;
 
@@ -646,7 +671,7 @@
         }
     }
 
-        private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
+    private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
     {
         // Local retry function
         async Task<dynamic?> FetchSwapsWithRetry()
@@ -656,7 +681,7 @@
             {
                 try
                 {
-                    var res = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 10000);
+                    var res = await SwapsService.GetPoolSwapsAsync(pool.PoolAddress, 3000);
                     if (res != null && res.Data != null) return res.Data;
                 }
                 catch (Exception ex)
@@ -707,7 +732,7 @@
             }
             
             int priceCalculationType = 0;
-             if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
+            if (secondTokenAddress == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || 
                 secondTokenAddress == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
             {
                 priceCalculationType = 1; 
@@ -796,9 +821,7 @@
         }
     }
 
-
-
-        private async void OnRefreshSwapsClicked()
+    private async void OnRefreshSwapsClicked()
     {
         // 1. Validation
         if (filters.MinTvlUsd < 1000m)
@@ -842,8 +865,6 @@
             await Task.Delay(1);
         }
     }
-
-
 
     private async Task BuildWsolUsdPriceHistoryAsync(DateTime? fromDate)
     {
