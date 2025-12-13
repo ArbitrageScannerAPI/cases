@@ -42,14 +42,14 @@ namespace DexResearchArbitrage.Models
         [JsonPropertyName("token0")]
         public LiquidityPoolTokenInfo Token0 { get; set; } = new();
 
-        [JsonPropertyName("token0_price_usd")]
-        public decimal? Token0PriceUsd { get; set; }
+        //[JsonPropertyName("token0_price_usd")]
+        //public decimal? Token0PriceUsd { get; set; }
 
         [JsonPropertyName("token1")]
         public LiquidityPoolTokenInfo Token1 { get; set; } = new();
 
-        [JsonPropertyName("token1_price_usd")]
-        public decimal? Token1PriceUsd { get; set; }
+        //[JsonPropertyName("token1_price_usd")]
+        //public decimal? Token1PriceUsd { get; set; }
 
         // Was: public DateTime CreatedAtTimestamp { get; set; }
         // Some pools return null here, so it must be nullable.
