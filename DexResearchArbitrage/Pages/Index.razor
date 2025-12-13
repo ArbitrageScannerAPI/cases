@@ -770,13 +770,13 @@
             else if (selectedNetwork == Network.Ethereum)
             {
                 // USDT or USDC (Ethereum addresses)
-                if (string.Equals(secondTokenAddress, "0xdAC17F958D2ee523a2206206994597C13D831ec7", StringComparison.OrdinalIgnoreCase) || 
-                    string.Equals(secondTokenAddress, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", StringComparison.OrdinalIgnoreCase))
+                if (secondTokenAddress == "0xdAC17F958D2ee523a2206206994597C13D831ec7" || 
+                    secondTokenAddress == "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
                 {
                     priceCalculationType = 1;
                 }
                 // wETH
-                else if (string.Equals(secondTokenAddress, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", StringComparison.OrdinalIgnoreCase))
+                else if (secondTokenAddress == "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
                 {
                     priceCalculationType = 2;
                 }
