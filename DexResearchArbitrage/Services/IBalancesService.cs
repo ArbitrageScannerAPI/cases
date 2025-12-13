@@ -4,6 +4,8 @@ namespace DexResearchArbitrage.Services
 {
     public interface IBalancesService
     {
-        Task<AddressTokensBalanceResponse?> GetAddressTokensBalanceAsync(string poolAddress, int limit = 20);
+        // Добавили параметр Network network
+        Task<AddressTokensBalanceResponse?> GetAddressTokensBalanceAsync(Network network, string poolAddress, int limit = 20);
     }
 }
+

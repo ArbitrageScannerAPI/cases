@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using DexResearchArbitrage.Models;
 
 namespace DexResearchArbitrage.Services
@@ -8,8 +7,11 @@ namespace DexResearchArbitrage.Services
     {
         private readonly HttpClient _httpClient;
 
-        // Vercel proxy for address tokens balance
-        private const string BalancesProxyUrl = "https://vercel-apip-roxima.vercel.app/api/balances";
+        // Vercel proxy for address tokens balance (Solana)
+        private const string SolanaBalancesProxyUrl = "https://vercel-apip-roxima.vercel.app/api/balances";
+
+        // Vercel proxy for address tokens balance (Ethereum)
+        private const string EthereumBalancesProxyUrl = "https://vercel-apip-roxima.vercel.app/api/eth_balances";
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -21,31 +23,42 @@ namespace DexResearchArbitrage.Services
             _httpClient = httpClient;
         }
 
-        public async Task<AddressTokensBalanceResponse?> GetAddressTokensBalanceAsync(string poolAddress, int limit = 20)
+        public async Task<AddressTokensBalanceResponse?> GetAddressTokensBalanceAsync(Network network, string poolAddress, int limit = 20)
         {
             if (string.IsNullOrWhiteSpace(poolAddress))
                 return null;
 
             try
             {
-                var url = $"{BalancesProxyUrl}?address={Uri.EscapeDataString(poolAddress)}&limit={limit}";
-                Console.WriteLine($"[Balances] Calling balances proxy: {url}");
+                // Выбираем URL в зависимости от сети
+                string baseUrl = network switch
+                {
+                    Network.Solana => SolanaBalancesProxyUrl,
+                    Network.Ethereum => EthereumBalancesProxyUrl,
+                    _ => string.Empty
+                };
+
+                if (string.IsNullOrEmpty(baseUrl)) return null;
+
+                var url = $"{baseUrl}?address={Uri.EscapeDataString(poolAddress)}&limit={limit}";
+                Console.WriteLine($"[{network} Balances] Calling proxy: {url}");
 
                 var response = await _httpClient.GetAsync(url);
                 var body = await response.Content.ReadAsStringAsync();
 
-                Console.WriteLine($"[Balances] Status: {response.StatusCode}");
-                Console.WriteLine($"[Balances] Body: {body}");
+                Console.WriteLine($"[{network} Balances] Status: {response.StatusCode}");
+                // Console.WriteLine($"[{network} Balances] Body: {body}"); // Раскомментировать для отладки
 
                 if (!response.IsSuccessStatusCode)
                     return null;
 
+                // Используем те же модели, так как поле amount_usd совпадает в обоих JSON
                 var result = JsonSerializer.Deserialize<AddressTokensBalanceResponse>(body, JsonOptions);
                 return result;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Balances] ERROR: {ex.Message}");
+                Console.WriteLine($"[{network} Balances] ERROR: {ex.Message}");
                 return null;
             }
         }

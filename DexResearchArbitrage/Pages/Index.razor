@@ -564,26 +564,25 @@
         // - etc.
     }
 
-    private async void OnRefreshTvlClicked()
+        private async void OnRefreshTvlClicked()
     {
-        // For now, TVL refresh is only implemented for Solana
-        if (selectedNetwork != Network.Solana)
-        {
-            await DialogService.ShowMessageBox("Not Implemented", "TVL refresh is currently only supported for Solana.", yesText: "OK");
+        // 1. Убрали проверку "только Solana". Теперь работает для всех сетей.
+        if (selectedNetwork == Network.None)
             return;
-        }
 
         filters.MinTvlUsd = 0;
 
+        // Проверка: выбран ли хоть один фильтр
         if (filters.SecondTokenAddresses.Count == 0)
         {
             await DialogService.ShowMessageBox(
                 "Warning",
-                "To refresh TVL, please apply the Second Token filter and select at least one of wSOL, USDT or USDC.",
+                "To refresh TVL, please apply the Second Token filter and select at least one of the secondary tokens (e.g. USDT, USDC, wETH/wSOL).",
                 yesText: "OK");
             return;
         }
 
+        // Проверка: применен ли фильтр к таблице
         if (filteredPools.Count == 0 || filteredPools.Count == allPools.Count)
         {
             await DialogService.ShowMessageBox(
@@ -593,17 +592,29 @@
             return;
         }
 
+        // Собираем список адресов для проверки (разный для Solana и Ethereum)
         var selectedAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
         foreach (var selected in filters.SecondTokenAddresses)
         {
-            foreach (var kvp in _predefinedSolanaSecondTokens)
+            if (selectedNetwork == Network.Solana)
             {
-                var addr = kvp.Key;
-                var symbol = kvp.Value;
-                if (selected.StartsWith(symbol + " ", StringComparison.OrdinalIgnoreCase))
-                    selectedAddresses.Add(addr);
+                foreach (var kvp in _predefinedSolanaSecondTokens)
+                {
+                    if (selected.StartsWith(kvp.Value + " ", StringComparison.OrdinalIgnoreCase))
+                        selectedAddresses.Add(kvp.Key);
+                }
+            }
+            else if (selectedNetwork == Network.Ethereum)
+            {
+                foreach (var kvp in _predefinedEthereumSecondTokens)
+                {
+                    if (selected.StartsWith(kvp.Value + " ", StringComparison.OrdinalIgnoreCase))
+                        selectedAddresses.Add(kvp.Key);
+                }
             }
         }
+
         if (selectedAddresses.Count == 0)
         {
             await DialogService.ShowMessageBox(
@@ -613,11 +624,11 @@
             return;
         }
 
-        // Turn on spinners for ALL visible pools
+        // Включаем спиннеры
         foreach (var pool in filteredPools)
         {
             pool.IsTvlLoading = true;
-            pool.TvlUsd = 0; // reset old value
+            pool.TvlUsd = 0;
         }
         StateHasChanged();
 
@@ -627,6 +638,7 @@
             {
                 try
                 {
+                    // Если пул не соответствует выбранным токенам (защита, хотя выше мы уже фильтровали таблицу)
                     if (!selectedAddresses.Contains(pool.SecondTokenAddress))
                     {
                         pool.TvlUsd = 0;
@@ -635,8 +647,10 @@
                         continue;
                     }
 
-                    var balances = await BalancesService.GetAddressTokensBalanceAsync(pool.PoolAddress, 20);
-                    if (balances == null || balances.Data.Count == 0)
+                    // --- ИЗМЕНЕНИЕ ЗДЕСЬ: Передаем selectedNetwork ---
+                    var balances = await BalancesService.GetAddressTokensBalanceAsync(selectedNetwork, pool.PoolAddress, 20);
+                    
+                    if (balances == null || balances.Data == null || balances.Data.Count == 0)
                     {
                         pool.TvlUsd = 0;
                         pool.IsTvlLoading = false;
@@ -644,15 +658,16 @@
                         continue;
                     }
 
+                    // Ищем баланс нашего вторичного токена
                     var match = balances.Data.FirstOrDefault(x =>
                         x.TokenAddress.Equals(pool.SecondTokenAddress, StringComparison.OrdinalIgnoreCase));
 
-                    if (match?.AmountUsd is decimal amountUsd)
-                        pool.TvlUsd = 2.0m * amountUsd;
+                    // Берем amount_usd и умножаем на 2 (классическая формула TVL V2 пулов)
+                    if (match != null && match.AmountUsd.HasValue)
+                        pool.TvlUsd = 2.0m * match.AmountUsd.Value;
                     else
                         pool.TvlUsd = 0;
 
-                    // Done for this pool: remove spinner and update UI immediately
                     pool.IsTvlLoading = false;
                     StateHasChanged();
                 }
@@ -667,9 +682,10 @@
         }
         finally
         {
-            // Do not disable globally - pools handle their own state
+            // Do not disable globally
         }
     }
+
 
     private async Task ProcessPoolSwapsAsync(PoolInfo pool, DateTime? fromDate)
     {
