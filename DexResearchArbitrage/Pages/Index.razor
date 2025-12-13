@@ -184,13 +184,13 @@
          </MudTd>
 
         <MudTd DataLabel="LatestPrice">
-            @if (context.LatestPricePriceUsd > 0)
-            {
-                @context.LatestPricePriceUsd.ToString("F6")
+            @if (context.IsSwapsLoading)
+            { 
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
             }
-            else
-            {
-                <span>-</span>
+             else
+            { 
+                @context.LatestPricePriceUsd.ToString("F6")
             }
         </MudTd>
     </RowTemplate>
