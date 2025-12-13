@@ -12,7 +12,7 @@ namespace DexResearchArbitrage.Services
         private const string SolanaPoolsProxyUrl = "https://vercel-apip-roxima.vercel.app/api/liquidity-pools";
 
         // TODO: Add Ethereum pools endpoint / proxy when available.
-        private const string EthereumPoolsApiUrl = "https://api.example.com/ethereum/pools";
+        private const string EthereumPoolsApiUrl = "https://vercel-apip-roxima.vercel.app/api/eth_liquidity-pools";
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -32,7 +32,7 @@ namespace DexResearchArbitrage.Services
             return network switch
             {
                 Network.Solana   => await GetSolanaPoolsAsync(tokenAddress),
-                Network.Ethereum => await GetEthereumPoolsStubAsync(tokenAddress),
+                Network.Ethereum => await GetEthereumPoolsAsync(tokenAddress),
                 _ => new List<PoolInfo>()
             };
         }
@@ -99,12 +99,67 @@ namespace DexResearchArbitrage.Services
             }
         }
 
-        private async Task<List<PoolInfo>> GetEthereumPoolsStubAsync(string tokenAddress)
+        private async Task<List<PoolInfo>> GetEthereumPoolsAsync(string tokenAddress)
+{
+    var result = new List<PoolInfo>();
+    try
+    {
+        var trimmed = tokenAddress.Trim();
+        // Используем константу EthereumPoolsApiUrl, которую ты уже добавил
+        var url = $"{EthereumPoolsApiUrl}?token_address={Uri.EscapeDataString(trimmed)}";
+        
+        Console.WriteLine($"[Ethereum Pools] Calling liquidity proxy: {url}");
+
+        var response = await _httpClient.GetAsync(url);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"[Ethereum Pools] Response Status: {response.StatusCode}");
+
+        if (!response.IsSuccessStatusCode)
         {
-            // TODO: Implement Ethereum pools fetching via ArbitrageScanner or another provider.
-            // For now we return an empty list to indicate no pools.
-            await Task.CompletedTask;
-            return new List<PoolInfo>();
+            Console.WriteLine("[Ethereum Pools] Non-success status");
+            return result;
         }
+
+        // ПЕРЕИСПОЛЬЗУЕМ ТОТ ЖЕ КЛАСС ОТВЕТА, ЧТО И ДЛЯ SOLANA
+        var apiResponse = JsonSerializer.Deserialize<LiquidityPoolsApiResponse>(body, JsonOptions);
+        
+        if (apiResponse == null || apiResponse.Data == null || apiResponse.Data.Count == 0)
+            return result;
+
+        foreach (var p in apiResponse.Data)
+        {
+            // Логика определения второго токена идентична
+            bool isToken0 = string.Equals(p.Token0?.TokenAddress, trimmed, StringComparison.OrdinalIgnoreCase);
+            bool isToken1 = string.Equals(p.Token1?.TokenAddress, trimmed, StringComparison.OrdinalIgnoreCase);
+
+            if (!isToken0 && !isToken1) continue;
+
+            var second = isToken0 ? p.Token1 : p.Token0;
+            if (second == null) continue;
+
+            result.Add(new PoolInfo
+            {
+                Dex = p.Dex,
+                PoolAddress = p.PoolAddress,
+                SecondTokenAddress = second.TokenAddress,
+                SecondTokenSymbol = second.Symbol,
+                TvlUsd = 0,
+                CountSwaps = 0,
+                PriceDiffPercent = 0,
+                LatestPriceFlag = false,
+                // Если в JSON Ethereum нет поля created_at_timestamp, оно будет default (null/minvalue)
+                LastSwapTimestamp = p.CreatedAtTimestamp 
+            });
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Ethereum Pools] ERROR: {ex.Message}");
+    }
+
+    return result;
+}
+
     }
 }

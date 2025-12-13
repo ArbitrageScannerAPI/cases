@@ -33,6 +33,34 @@ namespace DexResearchArbitrage.Services
         public string Detail { get; set; } = string.Empty;
     }
 
+    // DTO для Ethereum-ответа
+    internal class EthereumTokenOkResponse
+    {
+        [JsonPropertyName("token_address")]
+        public string TokenAddress { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("symbol")]
+        public string Symbol { get; set; } = string.Empty;
+
+        [JsonPropertyName("decimals")]
+        public int Decimals { get; set; }
+
+        [JsonPropertyName("price_usd")]
+        public decimal? PriceUsd { get; set; }
+
+        [JsonPropertyName("total_supply")]
+        public decimal? TotalSupply { get; set; }
+
+        [JsonPropertyName("deployed_at_block_id")]
+        public long? DeployedAtBlockId { get; set; }
+
+        [JsonPropertyName("deployed_at_timestamp")]
+        public DateTime? DeployedAtTimestamp { get; set; }
+    }
+
     public class TokenValidationService : ITokenValidationService
     {
         private readonly HttpClient _httpClient;
@@ -44,8 +72,8 @@ namespace DexResearchArbitrage.Services
         //   - /token/general_info    (type = "token")  <-- used by this service.
         private const string VercelApiUrl = "https://vercel-apip-roxima.vercel.app/api/validate";
 
-        // TODO: Replace with a real Ethereum validation endpoint when it becomes available.
-        private const string EthereumValidationApiUrl = "https://api.example.com/ethereum/token/general_info";
+        // Ethereum validation endpoint via proxy (у тебя уже настроен).
+        private const string EthereumValidationApiUrl = "https://vercel-apip-roxima.vercel.app/api/eth_validate";
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -82,9 +110,6 @@ namespace DexResearchArbitrage.Services
 
         /// <summary>
         /// Validates Solana token using the existing Vercel proxy.
-        /// The proxy wraps ArbitrageScanner API and returns either:
-        /// - error JSON: { "error": "...", "detail": "..." }
-        /// - success JSON: { "token_address": "...", "name": "...", "symbol": "...", "decimals": 6 }
         /// </summary>
         private async Task<TokenValidationResult> ValidateSolanaTokenAsync(string tokenAddress)
         {
@@ -181,22 +206,122 @@ namespace DexResearchArbitrage.Services
         }
 
         /// <summary>
-        /// Placeholder for Ethereum token validation.
-        /// Currently not implemented; once Ethereum endpoint is available,
-        /// mirror the Solana logic here using the corresponding API.
+        /// Validates Ethereum token using the configured proxy.
+        /// JSON format example:
+        /// {
+        ///   "token_address": "...",
+        ///   "name": "Tether USD",
+        ///   "symbol": "USDT",
+        ///   "decimals": 6,
+        ///   "price_usd": 1.00009022,
+        ///   "total_supply": 102696605277.3862,
+        ///   "deployed_at_block_id": 4634748,
+        ///   "deployed_at_timestamp": "2017-11-28T00:41:21"
+        /// }
         /// </summary>
         private async Task<TokenValidationResult> ValidateEthereumTokenAsync(string tokenAddress)
         {
-            // TODO: Implement Ethereum validation via ArbitrageScanner or another provider.
-            // For now we simply mark it as not supported.
-            await Task.CompletedTask;
-
-            return new TokenValidationResult
+            try
             {
-                IsValid = false,
-                TokenAddress = tokenAddress,
-                ErrorMessage = "Ethereum token validation is not implemented yet"
-            };
+                // Простейшая проверка формата адреса перед запросом
+                // (по твоему требованию можно было и не делать, но это дешевая защита от мусора).
+                var trimmed = tokenAddress.Trim();
+                if (!trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || trimmed.Length != 42)
+                {
+                    Console.WriteLine("[Ethereum] Local format validation FAILED");
+                    return new TokenValidationResult
+                    {
+                        IsValid = false,
+                        TokenAddress = tokenAddress,
+                        ErrorMessage = "Invalid Ethereum token address format"
+                    };
+                }
+
+                // Вызов прокси-эндоинта, куда ты уже прописал адрес.
+                // Если у тебя другой контракт (например, POST body) — просто поменяй URL/метод.
+                var url = $"{EthereumValidationApiUrl}?address={Uri.EscapeDataString(trimmed)}";
+                Console.WriteLine($"[Ethereum] Calling ETH validation API: {url}");
+
+                var response = await _httpClient.GetAsync(url);
+                var body = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine($"[Ethereum] Response Status: {response.StatusCode}");
+                Console.WriteLine($"[Ethereum] Response Body: {body}");
+
+                // Любой не-200 статус трактуем как ошибка, как ты и просил
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("[Ethereum] Validation FAILED: non-success HTTP status");
+                    return new TokenValidationResult
+                    {
+                        IsValid = false,
+                        TokenAddress = tokenAddress,
+                        ErrorMessage = "Invalid Ethereum token address or API error"
+                    };
+                }
+
+                // Парсим JSON в EthereumTokenOkResponse
+                EthereumTokenOkResponse? ok;
+                try
+                {
+                    ok = JsonSerializer.Deserialize<EthereumTokenOkResponse>(body, JsonOptions);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Ethereum] Parse OK response error: {ex.Message}");
+                    return new TokenValidationResult
+                    {
+                        IsValid = false,
+                        TokenAddress = tokenAddress,
+                        ErrorMessage = "Failed to parse Ethereum token information from API"
+                    };
+                }
+
+                // Проверка, что объект не null и есть token_address
+                if (ok == null || string.IsNullOrWhiteSpace(ok.TokenAddress))
+                {
+                    Console.WriteLine("[Ethereum] OK response is missing token_address");
+                    return new TokenValidationResult
+                    {
+                        IsValid = false,
+                        TokenAddress = tokenAddress,
+                        ErrorMessage = "Ethereum token information is incomplete in API response"
+                    };
+                }
+
+                // Сравнение адресов (case-insensitive)
+                if (!string.Equals(ok.TokenAddress, trimmed, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("[Ethereum] Response token_address mismatch");
+                    return new TokenValidationResult
+                    {
+                        IsValid = false,
+                        TokenAddress = tokenAddress,
+                        ErrorMessage = "Ethereum token address mismatch in API response"
+                    };
+                }
+
+                Console.WriteLine("[Ethereum] Validation SUCCESS");
+
+                // Ничего дополнительно не запоминаем, только базовые поля
+                return new TokenValidationResult
+                {
+                    IsValid = true,
+                    TokenAddress = ok.TokenAddress,
+                    TokenSymbol = ok.Symbol,
+                    TokenName = ok.Name
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Ethereum] Validation ERROR: {ex.Message}");
+                return new TokenValidationResult
+                {
+                    IsValid = false,
+                    TokenAddress = tokenAddress,
+                    ErrorMessage = $"Ethereum validation error: {ex.Message}"
+                };
+            }
         }
     }
 }
