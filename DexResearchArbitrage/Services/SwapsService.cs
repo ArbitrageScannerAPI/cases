@@ -45,16 +45,10 @@ namespace DexResearchArbitrage.Services
 
             foreach (var p in typeInfo.Properties)
             {
-                var memberName = (p.AttributeProvider as System.Reflection.MemberInfo)?.Name;
-
-                if (memberName == nameof(PoolSwapItem.FromTokenAddress))
-                    p.Name = "token0_address";
-                else if (memberName == nameof(PoolSwapItem.FromTokenAmount))
-                    p.Name = "token0_amount";
-                else if (memberName == nameof(PoolSwapItem.ToTokenAddress))
-                    p.Name = "token1_address";
-                else if (memberName == nameof(PoolSwapItem.ToTokenAmount))
-                    p.Name = "token1_amount";
+                if (p.Name == "from_token_address") p.Name = "token0_address";
+                else if (p.Name == "from_token_amount") p.Name = "token0_amount";
+                else if (p.Name == "to_token_address") p.Name = "token1_address";
+                else if (p.Name == "to_token_amount") p.Name = "token1_amount";
             }
         }
 
