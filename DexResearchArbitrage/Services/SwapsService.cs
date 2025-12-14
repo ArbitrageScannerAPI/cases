@@ -1,26 +1,70 @@
-using System.Text.Json;              // for JsonSerializerOptions and JsonSerializer
-using DexResearchArbitrage.Models;   // for PoolSwapsResponse
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata; // Required for TypeInfoResolver
+using DexResearchArbitrage.Models;
 
 namespace DexResearchArbitrage.Services
 {
     public class SwapsService : ISwapsService
     {
         private readonly HttpClient _httpClient;
-        
+
         // Solana endpoint (existing: swops)
         private const string SolanaSwapsProxyUrl = "https://vercel-apip-roxima.vercel.app/api/swops";
-        
+
         // Ethereum endpoint (new: eth_swops)
         private const string EthereumSwapsProxyUrl = "https://vercel-apip-roxima.vercel.app/api/eth_swops";
 
-        private static readonly JsonSerializerOptions JsonOptions = new()
+        // OPTION 1: Standard settings for Solana (uses [JsonPropertyName] from class)
+        private static readonly JsonSerializerOptions SolanaOptions = new()
         {
             PropertyNameCaseInsensitive = true
+        };
+
+        // OPTION 2: Modified settings for Ethereum (maps 'token0/token1' to 'From/To')
+        private static readonly JsonSerializerOptions EthOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver
+            {
+                Modifiers = { ConfigureEthMapping }
+            }
         };
 
         public SwapsService(HttpClient httpClient)
         {
             _httpClient = httpClient;
+        }
+
+        /// <summary>
+        /// Modifier that renames JSON properties on the fly for Ethereum.
+        /// It maps "token0_..." fields to "From..." properties and "token1_..." to "To..." properties.
+        /// </summary>
+        private static void ConfigureEthMapping(JsonTypeInfo typeInfo)
+        {
+            if (typeInfo.Type != typeof(PoolSwapItem)) return;
+
+            foreach (JsonPropertyInfo property in typeInfo.Properties)
+            {
+                // Map FromToken... properties to token0_... fields in JSON
+                if (property.Name == nameof(PoolSwapItem.FromTokenAddress))
+                    property.Name = "token0_address";
+
+                if (property.Name == nameof(PoolSwapItem.FromTokenAmount))
+                    property.Name = "token0_amount";
+
+                //if (property.Name == nameof(PoolSwapItem.FromTokenPriceUsd))
+                //    property.Name = "token0_price_usd";
+
+                // Map ToToken... properties to token1_... fields in JSON
+                if (property.Name == nameof(PoolSwapItem.ToTokenAddress))
+                    property.Name = "token1_address";
+
+                if (property.Name == nameof(PoolSwapItem.ToTokenAmount))
+                    property.Name = "token1_amount";
+
+                // if (property.Name == nameof(PoolSwapItem.ToTokenPriceUsd))
+                 //   property.Name = "token1_price_usd";
+            }
         }
 
         public async Task<PoolSwapsResponse?> GetPoolSwapsAsync(Network network, string poolAddress, int limit = 3000)
@@ -52,23 +96,17 @@ namespace DexResearchArbitrage.Services
                 if (!response.IsSuccessStatusCode)
                     return null;
 
-
                 PoolSwapsResponse? result = null;
-                
+
                 // Measure deserialization time
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                if (network == Network.Ethereum)
-                {
-                    // 1. 4 Ethereum
-                    result = JsonSerializer.Deserialize<EthPoolSwapsResponse>(body, JsonOptions);
 
-                }                
-                else
-                {
-                    // 4 Solana 
-                    result = JsonSerializer.Deserialize<PoolSwapsResponse>(body, JsonOptions);
-                }
-                
+                // Select correct JSON options based on network
+                JsonSerializerOptions currentOptions = (network == Network.Ethereum) ? EthOptions : SolanaOptions;
+
+                // Deserialize into the SAME class structure, but with different mapping rules
+                result = JsonSerializer.Deserialize<PoolSwapsResponse>(body, currentOptions);
+
                 sw.Stop();
 
                 if (result != null)
