@@ -807,9 +807,9 @@
                 // Filter by date
                 if (ts < from || ts > to) continue;
 
-                countInRange++;
-
                 if (priceCalculationType == 0) continue;
+
+                countInRange++;
 
                 decimal? priceFirstPerSecond = null;
                 string? sFrom = s.FromTokenAddress;
