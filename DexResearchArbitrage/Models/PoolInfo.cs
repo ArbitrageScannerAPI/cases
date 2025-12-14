@@ -199,31 +199,49 @@ public class PoolSwapItem
 
     {
         [JsonPropertyName("meta")]
-        public PoolSwapsMeta Meta { get; set; } = new();
+        public new PoolSwapsMeta Meta { get; set; } = new();
 
         [JsonPropertyName("data")]
-        public List<EthPoolSwapItem> Data { get; set; } = new();
+        public new List<EthPoolSwapItem> Data { get; set; } = new();
     }
 
     public class EthPoolSwapItem : PoolSwapItem
     {
-        [JsonPropertyName("tx")]
-        public string Tx { get; set; } = string.Empty;
 
-        [JsonPropertyName("timestamp")]
-        public DateTime Timestamp { get; set; }
+            // Tx и Timestamp переопределять НЕ НАДО, они уже есть в родителе 
+            // и имена JSON ("tx", "timestamp") совпадают.
 
-        [JsonPropertyName("token0_address")]
-        public string FromTokenAddress { get; set; } = string.Empty;
+            // А вот для токенов делаем "воронки":
 
-        [JsonPropertyName("token0_amount")]
-        public decimal FromTokenAmount { get; set; }
+            [JsonPropertyName("token0_address")]
+            public string Token0Address
+            {
+                get => FromTokenAddress; // Читаем из родителя
+                set => FromTokenAddress = value; // Пишем в родителя
+            }
 
-        [JsonPropertyName("token1_address")]
-        public string ToTokenAddress { get; set; } = string.Empty;
+            [JsonPropertyName("token0_amount")]
+            public decimal Token0Amount
+            {
+                get => FromTokenAmount;
+                set => FromTokenAmount = value;
+            }
 
-        [JsonPropertyName("token1_amount")]
-        public decimal ToTokenAmount { get; set; }
+            [JsonPropertyName("token1_address")]
+            public string Token1Address
+            {
+                get => ToTokenAddress;
+                set => ToTokenAddress = value;
+            }
+
+            [JsonPropertyName("token1_amount")]
+            public decimal Token1Amount
+            {
+                get => ToTokenAmount;
+                set => ToTokenAmount = value;
+            }
+        
+
     }
 
 
