@@ -739,7 +739,17 @@
 
             // 2. Prepare for calculation
             var firstTokenAddress = validatedToken?.TokenAddress ?? string.Empty;
+            if (selectedNetwork == Network.Ethereum)
+            {
+                firstTokenAddress = firstTokenAddress.ToLowerInvariant();
+            }
+
+
             var secondTokenAddress = pool.SecondTokenAddress;
+            if (selectedNetwork == Network.Ethereum)
+            {
+                secondTokenAddress = secondTokenAddress.ToLowerInvariant();
+            }
             
             // Optimization: Pre-calculate diff index
             int diffIndex = 0;
@@ -770,13 +780,14 @@
             else if (selectedNetwork == Network.Ethereum)
             {
                 // USDT or USDC (Ethereum addresses)
-                if (secondTokenAddress == "0xdAC17F958D2ee523a2206206994597C13D831ec7" || 
-                    secondTokenAddress == "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                if (secondTokenAddress == "0xdac17f958d2ee523a2206206994597c13d831ec7" || 
+                    secondTokenAddress == "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")
                 {
                     priceCalculationType = 1;
                 }
                 // wETH
-                else if (secondTokenAddress == "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
+                else if (secondTokenAddress == "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+
                 {
                     priceCalculationType = 2;
                 }
