@@ -823,6 +823,10 @@
                 decimal sFromAmt = s.FromTokenAmount;
                 decimal sToAmt = s.ToTokenAmount;
 
+                // 4 debug
+                Console.WriteLine($"[Swap] From: {sFrom} | Amt: {sFromAmt} | To: {s.ToTokenAddress} | Amt: {sToAmt}");
+
+
                 if (fromIsFirst && sFromAmt != 0)
                     priceFirstPerSecond = sToAmt / sFromAmt;
                 else if (!fromIsFirst && sToAmt != 0)
