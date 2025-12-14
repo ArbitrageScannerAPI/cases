@@ -188,17 +188,13 @@ public class PoolSwapsMeta
         [JsonPropertyName("from_token_amount")]
         public decimal FromTokenAmount { get; set; }
 
-        [JsonPropertyName("from_token_price_usd")]
-        public decimal? FromTokenPriceUsd { get; set; } // Added
-
         [JsonPropertyName("to_token_address")]
         public string ToTokenAddress { get; set; } = string.Empty;
 
         [JsonPropertyName("to_token_amount")]
         public decimal ToTokenAmount { get; set; }
 
-        [JsonPropertyName("to_token_price_usd")]
-        public decimal? ToTokenPriceUsd { get; set; } // Added
+        
     }
 
     

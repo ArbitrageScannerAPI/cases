@@ -43,27 +43,18 @@ namespace DexResearchArbitrage.Services
         {
             if (typeInfo.Type != typeof(PoolSwapItem)) return;
 
-            foreach (JsonPropertyInfo property in typeInfo.Properties)
+            foreach (var p in typeInfo.Properties)
             {
-                // Map FromToken... properties to token0_... fields in JSON
-                if (property.Name == nameof(PoolSwapItem.FromTokenAddress))
-                    property.Name = "token0_address";
+                var memberName = (p.AttributeProvider as System.Reflection.MemberInfo)?.Name;
 
-                if (property.Name == nameof(PoolSwapItem.FromTokenAmount))
-                    property.Name = "token0_amount";
-
-                //if (property.Name == nameof(PoolSwapItem.FromTokenPriceUsd))
-                //    property.Name = "token0_price_usd";
-
-                // Map ToToken... properties to token1_... fields in JSON
-                if (property.Name == nameof(PoolSwapItem.ToTokenAddress))
-                    property.Name = "token1_address";
-
-                if (property.Name == nameof(PoolSwapItem.ToTokenAmount))
-                    property.Name = "token1_amount";
-
-                // if (property.Name == nameof(PoolSwapItem.ToTokenPriceUsd))
-                 //   property.Name = "token1_price_usd";
+                if (memberName == nameof(PoolSwapItem.FromTokenAddress))
+                    p.Name = "token0_address";
+                else if (memberName == nameof(PoolSwapItem.FromTokenAmount))
+                    p.Name = "token0_amount";
+                else if (memberName == nameof(PoolSwapItem.ToTokenAddress))
+                    p.Name = "token1_address";
+                else if (memberName == nameof(PoolSwapItem.ToTokenAmount))
+                    p.Name = "token1_amount";
             }
         }
 
