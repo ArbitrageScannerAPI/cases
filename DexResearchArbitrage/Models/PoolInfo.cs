@@ -195,8 +195,41 @@ public class PoolSwapItem
     public decimal ToTokenAmount { get; set; }
 }
 
-// Price history item: price of "first token" in terms of "second token" (or USD)
-public class SwapPricePoint
+    public class EthPoolSwapsResponse : PoolSwapsResponse
+
+    {
+        [JsonPropertyName("meta")]
+        public PoolSwapsMeta Meta { get; set; } = new();
+
+        [JsonPropertyName("data")]
+        public List<EthPoolSwapItem> Data { get; set; } = new();
+    }
+
+    public class EthPoolSwapItem : PoolSwapItem
+    {
+        [JsonPropertyName("tx")]
+        public string Tx { get; set; } = string.Empty;
+
+        [JsonPropertyName("timestamp")]
+        public DateTime Timestamp { get; set; }
+
+        [JsonPropertyName("token0_address")]
+        public string FromTokenAddress { get; set; } = string.Empty;
+
+        [JsonPropertyName("token0_amount")]
+        public decimal FromTokenAmount { get; set; }
+
+        [JsonPropertyName("token1_address")]
+        public string ToTokenAddress { get; set; } = string.Empty;
+
+        [JsonPropertyName("token1_amount")]
+        public decimal ToTokenAmount { get; set; }
+    }
+
+
+
+    // Price history item: price of "first token" in terms of "second token" (or USD)
+    public class SwapPricePoint
 {
     public DateTime Timestamp { get; set; }
     public decimal Price { get; set; }

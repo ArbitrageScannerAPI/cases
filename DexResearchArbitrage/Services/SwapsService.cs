@@ -52,9 +52,23 @@ namespace DexResearchArbitrage.Services
                 if (!response.IsSuccessStatusCode)
                     return null;
 
+
+                PoolSwapsResponse? result = null;
+                
                 // Measure deserialization time
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var result = JsonSerializer.Deserialize<PoolSwapsResponse>(body, JsonOptions);
+                if (network == Network.Ethereum)
+                {
+                    // 1. 4 Ethereum
+                    result = JsonSerializer.Deserialize<EthPoolSwapsResponse>(body, JsonOptions);
+
+                }                
+                else
+                {
+                    // 4 Solana 
+                    result = JsonSerializer.Deserialize<PoolSwapsResponse>(body, JsonOptions);
+                }
+                
                 sw.Stop();
 
                 if (result != null)
