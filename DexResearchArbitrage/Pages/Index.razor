@@ -184,15 +184,15 @@
          </MudTd>
 
         <MudTd DataLabel="LatestPrice">
-            @if (context.IsSwapsLoading)
-            { 
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-            }
-             else
-            { 
-                @context.LatestPricePriceUsd.ToString("F6")
-            }
-        </MudTd>
+    @if (context.IsSwapsLoading)
+    { 
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+    }
+     else
+    { 
+        @Math.Abs(context.LatestPricePriceUsd).ToString("N6", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))
+    }
+</MudTd>
     </RowTemplate>
 </MudTable>
 
