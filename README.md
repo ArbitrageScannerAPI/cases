@@ -1,6 +1,6 @@
 # samples_4_API
 
-Examples of using [API](https://api-ascn-ai.readme.io/) to indexed data from the on-chain in Blazor Webassembly applications.
+Examples of using [API](https://b2b-docs.arbitragescanner.io/reference/intro) to indexed data from the on-chain in Blazor Webassembly applications.
 
 
 ## 🚀 Application demo
